@@ -1,3 +1,14 @@
+/* ═══════════════════════════════════════════════════════
+   THE SALE POINT — main.js
+   Features:
+   - Login / Logout with session persistence
+   - 3 Themes (Dark, Light, Rose)
+   - One tab per table (multiple tables can have their own tabs)
+   - KOT (Kitchen Order Ticket) — print pending new items
+   - SweetAlert2 replaces all alert/confirm dialogs
+═══════════════════════════════════════════════════════ */
+
+/* ── Storage ── */
 const LS = {
   get: (k) => {
     try {
@@ -13,6 +24,25 @@ const LS = {
   },
 };
 
+/* ── Demo Users (extend as needed) ── */
+const USERS = [
+  { username: "admin", password: "admin123", role: "Admin", display: "Admin" },
+  {
+    username: "cashier",
+    password: "cash123",
+    role: "Cashier",
+    display: "Cashier",
+  },
+  {
+    username: "waiter",
+    password: "wait123",
+    role: "Waiter",
+    display: "Waiter",
+  },
+];
+
+let CURRENT_USER = null;
+
 /* ── State ── */
 let DB = { cats: [], items: [], staff: [], tables: [], orders: [], tabs: [] };
 let CART = [];
@@ -20,13 +50,17 @@ let TAB_ID = null;
 let ACTIVE_CAT = "all";
 let PAY = "Cash";
 let ORDER_NUM = 1;
+let KOT_NUM = 1;
 const TAX = 0.0;
 const uid = () =>
   Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
-/* ── Temp image state for modals ── */
+/* ── Temp image state ── */
 let _itemImg = null;
 let _catImg = null;
+
+/* ── Pending KOT items (cart item ids not yet KOT-printed) ── */
+let KOT_PENDING = new Set(); // set of cart item IDs added since last KOT
 
 /* ── Category color helpers ── */
 const TAG_CLASS = {
@@ -46,7 +80,7 @@ const TAG_COLOR = {
   gray: "#9BA5C0",
 };
 
-/* ── SVG placeholder (per category name or default) ── */
+/* ── SVG placeholders ── */
 const SVGS = {
   Starters: `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="14" r="7" stroke="#94A3B8" stroke-width="1.4"/><path d="M9 32c0-6 5-10 11-10s11 4 11 10" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/><path d="M17 10h6M20 7v6" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/></svg>`,
   Mains: `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="22" r="12" stroke="#94A3B8" stroke-width="1.4"/><path d="M8 22h24M20 10v4M13 15l2.5 2.5M27 15l-2.5 2.5" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/></svg>`,
@@ -60,7 +94,107 @@ function getSVG(catName) {
   return SVGS[catName] || SVGS.default;
 }
 
-/* ── Seed data ── */
+/* ═══════════════════════════
+   LOGIN / LOGOUT
+═══════════════════════════ */
+function togglePw() {
+  const inp = document.getElementById("l-pass");
+  const tog = document.getElementById("pw-tog");
+  if (inp.type === "password") {
+    inp.type = "text";
+    tog.textContent = "🙈";
+  } else {
+    inp.type = "password";
+    tog.textContent = "👁";
+  }
+}
+
+function doLogin(e) {
+  e.preventDefault();
+  const user = document.getElementById("l-user").value.trim();
+  const pass = document.getElementById("l-pass").value;
+  const errEl = document.getElementById("login-error");
+  const btn = document.getElementById("login-btn");
+
+  // Clear errors
+  document.getElementById("l-user-e").classList.remove("show");
+  document.getElementById("l-pass-e").classList.remove("show");
+  document.getElementById("l-user").classList.remove("invalid");
+  document.getElementById("l-pass").classList.remove("invalid");
+  errEl.style.display = "none";
+
+  let ok = true;
+  if (!user) {
+    document.getElementById("l-user").classList.add("invalid");
+    document.getElementById("l-user-e").classList.add("show");
+    ok = false;
+  }
+  if (!pass) {
+    document.getElementById("l-pass").classList.add("invalid");
+    document.getElementById("l-pass-e").classList.add("show");
+    ok = false;
+  }
+  if (!ok) return;
+
+  const found = USERS.find((u) => u.username === user && u.password === pass);
+  if (!found) {
+    errEl.style.display = "block";
+    document.getElementById("l-pass").classList.add("invalid");
+    return;
+  }
+
+  // Success — animate button
+  btn.textContent = "✓ Welcome!";
+  btn.style.opacity = ".85";
+  CURRENT_USER = found;
+  LS.set("session", {
+    username: found.username,
+    role: found.role,
+    display: found.display,
+  });
+
+  setTimeout(() => {
+    document.getElementById("login-screen").style.display = "none";
+    document.getElementById("app-wrap").style.display = "flex";
+    document.getElementById("user-pill-name").textContent = found.display;
+    initApp();
+  }, 500);
+}
+
+function doLogout() {
+  Swal.fire({
+    title: "Sign Out?",
+    text: "You'll be returned to the login screen.",
+    icon: "question",
+    showCancelButton: true,
+    confirmButtonText: "Sign Out",
+    cancelButtonText: "Stay",
+    reverseButtons: true,
+  }).then((r) => {
+    if (r.isConfirmed) {
+      LS.set("session", null);
+      CURRENT_USER = null;
+      document.getElementById("app-wrap").style.display = "none";
+      document.getElementById("login-screen").style.display = "flex";
+      document.getElementById("l-user").value = "";
+      document.getElementById("l-pass").value = "";
+      document.getElementById("login-btn").textContent = "Sign In";
+      document.getElementById("login-btn").style.opacity = "";
+    }
+  });
+}
+
+function setLoginTheme(theme, btn) {
+  document
+    .querySelectorAll(".ltheme-btn")
+    .forEach((b) => b.classList.remove("on"));
+  btn.classList.add("on");
+  applyTheme(theme);
+}
+
+/* ═══════════════════════════
+   SEED DATA
+═══════════════════════════ */
 function seedCats() {
   return [
     { id: uid(), name: "Starters", tag: "green", img: null },
@@ -78,7 +212,7 @@ function seedItems(cats) {
       id: uid(),
       name: "Burrata Caprese",
       catId: gc("Starters"),
-      price: 18,
+      price: 650,
       status: "on",
       desc: "Heirloom tomato, aged balsamic",
       img: null,
@@ -87,7 +221,7 @@ function seedItems(cats) {
       id: uid(),
       name: "Scallop Ceviche",
       catId: gc("Starters"),
-      price: 24,
+      price: 850,
       status: "on",
       desc: "Lime & coconut leche de tigre",
       img: null,
@@ -96,135 +230,135 @@ function seedItems(cats) {
       id: uid(),
       name: "Truffle Arancini",
       catId: gc("Starters"),
-      price: 21,
+      price: 750,
       status: "on",
       desc: "Black truffle, parmesan foam",
       img: null,
     },
     {
       id: uid(),
-      name: "Duck Confit",
+      name: "Chicken Karahi",
       catId: gc("Mains"),
-      price: 48,
+      price: 1200,
       status: "on",
-      desc: "Orange gastrique, pommes sarladaises",
+      desc: "Slow-cooked, desi spices",
       img: null,
     },
     {
       id: uid(),
-      name: "Pan-Seared Halibut",
+      name: "Mutton Nihari",
       catId: gc("Mains"),
-      price: 52,
+      price: 1400,
       status: "on",
-      desc: "Saffron beurre blanc, samphire",
+      desc: "Slow cooked overnight, garnished",
       img: null,
     },
     {
       id: uid(),
-      name: "Wild Mushroom Risotto",
+      name: "Prawn Biryani",
       catId: gc("Mains"),
-      price: 38,
+      price: 1600,
       status: "on",
-      desc: "Porcini, aged parmesan",
+      desc: "Jumbo prawns, saffron rice",
       img: null,
     },
     {
       id: uid(),
-      name: "Wagyu Ribeye 250g",
+      name: "Seekh Kabab",
       catId: gc("Grill"),
-      price: 95,
+      price: 950,
       status: "on",
-      desc: "A5 Japanese wagyu, chimichurri",
+      desc: "Minced beef, charcoal grilled",
       img: null,
     },
     {
       id: uid(),
-      name: "Beef Tenderloin",
+      name: "Beef Boti",
       catId: gc("Grill"),
-      price: 72,
+      price: 1100,
       status: "on",
-      desc: "Bordelaise, pomme purée",
+      desc: "Marinated tender beef cubes",
       img: null,
     },
     {
       id: uid(),
-      name: "Lobster Thermidor",
+      name: "Mix Grill Platter",
       catId: gc("Grill"),
-      price: 88,
+      price: 2200,
       status: "on",
-      desc: "Gruyère, cognac cream",
+      desc: "4-skewer platter with raita",
       img: null,
     },
     {
       id: uid(),
-      name: "Tagliatelle al Tartufo",
+      name: "Peshwari Pasta",
       catId: gc("Pasta"),
-      price: 42,
+      price: 850,
+      status: "on",
+      desc: "Cream sauce, desi twist",
+      img: null,
+    },
+    {
+      id: uid(),
+      name: "Tagliatelle Tartufo",
+      catId: gc("Pasta"),
+      price: 1100,
       status: "on",
       desc: "Black truffle, egg yolk",
       img: null,
     },
     {
       id: uid(),
-      name: "Risotto Nero",
-      catId: gc("Pasta"),
-      price: 38,
-      status: "on",
-      desc: "Squid ink, calamari, bottarga",
-      img: null,
-    },
-    {
-      id: uid(),
-      name: "Crème Brûlée",
+      name: "Gulab Jamun",
       catId: gc("Desserts"),
-      price: 18,
+      price: 350,
       status: "on",
-      desc: "Tahitian vanilla, caramelised crust",
+      desc: "Warm syrup, rose cardamom",
       img: null,
     },
     {
       id: uid(),
       name: "Chocolate Fondant",
       catId: gc("Desserts"),
-      price: 20,
+      price: 550,
       status: "on",
       desc: "Valrhona 70%, salted caramel",
       img: null,
     },
     {
       id: uid(),
-      name: "Champagne — Moët",
+      name: "Rooh Afza Shake",
       catId: gc("Beverages"),
-      price: 28,
+      price: 280,
       status: "on",
-      desc: "Impérial Brut, 175ml",
+      desc: "Chilled, creamy",
       img: null,
     },
     {
       id: uid(),
-      name: "Red Wine",
+      name: "Green Tea",
       catId: gc("Beverages"),
-      price: 22,
+      price: 150,
       status: "on",
-      desc: "Sommelier selection, 175ml",
+      desc: "Premium green leaves",
       img: null,
     },
     {
       id: uid(),
-      name: "Still Water",
+      name: "Doodh Patti",
       catId: gc("Beverages"),
-      price: 6,
+      price: 120,
       status: "on",
-      desc: "San Pellegrino or Evian",
+      desc: "Strong Pakistani chai",
       img: null,
     },
     {
       id: uid(),
-      name: "Espresso",
+      name: "Fresh Lemonade",
       catId: gc("Beverages"),
-      price: 7,
+      price: 220,
       status: "on",
-      desc: "Single origin, specialty roast",
+      desc: "Mint, lemon, chilled soda",
       img: null,
     },
   ];
@@ -233,30 +367,30 @@ function seedStaff() {
   return [
     {
       id: uid(),
-      name: "Isabelle Laurent",
-      role: "Head Sommelier",
-      phone: "+1 555 1001",
+      name: "Ahmed Ali",
+      role: "Head Waiter",
+      phone: "+92 300 1001",
       status: "on",
     },
     {
       id: uid(),
-      name: "Marco Esposito",
-      role: "Maître d'Hôtel",
-      phone: "+1 555 1002",
+      name: "Sara Khan",
+      role: "Cashier",
+      phone: "+92 300 1002",
       status: "on",
     },
     {
       id: uid(),
-      name: "Sophia Chen",
-      role: "Senior Server",
-      phone: "+1 555 1003",
-      status: "on",
-    },
-    {
-      id: uid(),
-      name: "Alexei Morin",
+      name: "Bilal Raza",
       role: "Server",
-      phone: "+1 555 1004",
+      phone: "+92 300 1003",
+      status: "on",
+    },
+    {
+      id: uid(),
+      name: "Fatima Noor",
+      role: "Manager",
+      phone: "+92 300 1004",
       status: "on",
     },
   ];
@@ -271,7 +405,7 @@ function seedTables() {
     { id: uid(), name: "Table 6", seats: 8, status: "avail" },
     { id: uid(), name: "Bar 1", seats: 2, status: "avail" },
     { id: uid(), name: "Bar 2", seats: 2, status: "avail" },
-    { id: uid(), name: "Private Room", seats: 12, status: "clean" },
+    { id: uid(), name: "VIP Room", seats: 12, status: "clean" },
   ];
 }
 
@@ -301,62 +435,108 @@ function loadDB() {
   ORDER_NUM = DB.orders.length
     ? Math.max(...DB.orders.map((o) => o.num || 1)) + 1
     : 1;
+  KOT_NUM = LS.get("kot_num") || 1;
 }
 const save = (k) => LS.set(k, DB[k]);
 
-/* ── Image upload widget ── */
-function buildImgWidget(containerId, currentSrc, onLoadCb) {
-  const wrap = document.getElementById(containerId);
-  if (!wrap) return;
-  if (currentSrc) {
-    wrap.innerHTML = `
-      <div class="img-preview-box">
-        <img src="${currentSrc}" alt="Preview"/>
-        <button class="img-rm-btn" type="button" onclick="rmImg('${containerId}',${JSON.stringify(onLoadCb)})">✕</button>
-      </div>`;
-  } else {
-    wrap.innerHTML = `
-      <label class="img-zone">
-        <div class="img-zone-ico">🖼</div>
-        <div class="img-zone-lbl">Click to upload photo</div>
-        <input type="file" accept="image/*" onchange="loadImg(this,'${containerId}',${JSON.stringify(onLoadCb)})"/>
-      </label>`;
-  }
+/* ═══════════════════════════
+   THEME
+═══════════════════════════ */
+function initTheme() {
+  applyTheme(LS.get("theme") || "dark");
 }
-function loadImg(input, containerId, cbName) {
-  const file = input.files[0];
-  if (!file) return;
-  // Validate it's an image
-  if (!file.type.startsWith("image/")) {
-    toast("Please select an image file", "err");
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const src = e.target.result;
-    buildImgWidget(containerId, src, cbName);
-    if (cbName === "setItemImg") setItemImg(src);
-    else if (cbName === "setCatImg") setCatImg(src);
-  };
-  reader.onerror = () => toast("Could not read file", "err");
-  reader.readAsDataURL(file);
-}
-function rmImg(containerId, cbName) {
-  buildImgWidget(containerId, null, cbName);
-  if (cbName === "setItemImg") setItemImg(null);
-  else if (cbName === "setCatImg") setCatImg(null);
-}
-function setItemImg(src) {
-  _itemImg = src;
-}
-function setCatImg(src) {
-  _catImg = src;
+function applyTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  LS.set("theme", t);
+  // Highlight active theme btn in sidebar
+  document
+    .querySelectorAll(".theme-btn")
+    .forEach((b) =>
+      b.classList.toggle("on", b.getAttribute("data-theme") === t),
+    );
+  // Highlight login theme btns
+  document
+    .querySelectorAll(".ltheme-btn")
+    .forEach((b) =>
+      b.classList.toggle("on", b.getAttribute("data-theme") === t),
+    );
 }
 
-/* ── Navigation ── */
+/* ═══════════════════════════
+   TOAST
+═══════════════════════════ */
+function toast(msg, type = "ok") {
+  const icons = { ok: "✓", err: "✗", amber: "✦", info: "ℹ" };
+  const el = document.createElement("div");
+  el.className = "toast " + type;
+  el.innerHTML = `<span>${icons[type] || "•"}</span>${msg}`;
+  document.getElementById("toasts").appendChild(el);
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => el.classList.add("in")),
+  );
+  setTimeout(() => {
+    el.classList.remove("in");
+    el.classList.add("out");
+    setTimeout(() => el.remove(), 350);
+  }, 3200);
+}
+
+/* ═══════════════════════════
+   SWAL HELPERS
+═══════════════════════════ */
+function swalConfirm(title, text, confirmTxt = "Yes", icon = "warning") {
+  return Swal.fire({
+    title,
+    text,
+    icon,
+    showCancelButton: true,
+    confirmButtonText: confirmTxt,
+    cancelButtonText: "Cancel",
+    reverseButtons: true,
+  }).then((r) => r.isConfirmed);
+}
+
+/* ═══════════════════════════
+   MODAL
+═══════════════════════════ */
+function openMo(id) {
+  document.getElementById(id).classList.add("open");
+}
+function closeMo(id) {
+  document.getElementById(id).classList.remove("open");
+}
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll(".modal-bg").forEach((m) =>
+    m.addEventListener("click", (e) => {
+      if (e.target === m) m.classList.remove("open");
+    }),
+  );
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape")
+    document
+      .querySelectorAll(".modal-bg.open")
+      .forEach((m) => m.classList.remove("open"));
+});
+function clrErr(id) {
+  const m = document.getElementById(id);
+  if (!m) return;
+  m.querySelectorAll(".fc").forEach((f) => f.classList.remove("invalid"));
+  m.querySelectorAll(".ferr").forEach((e) => e.classList.remove("show"));
+}
+function fErr(fi, ei) {
+  const f = document.getElementById(fi),
+    e = document.getElementById(ei);
+  if (f) f.classList.add("invalid");
+  if (e) e.classList.add("show");
+}
+
+/* ═══════════════════════════
+   NAVIGATION
+═══════════════════════════ */
 const PAGE_INFO = {
   pos: ["New Order", "Select dishes and build the order"],
-  tabs: ["Open Tabs", "All unconfirmed orders in progress"],
+  tabs: ["Open Tabs", "All unconfirmed orders — one per table"],
   tables: ["Table Map", "Manage seating and availability"],
   master: ["Manage", "Menu items, categories & staff"],
   orders: ["Order History", "All completed transactions"],
@@ -415,74 +595,44 @@ function closeSb() {
   document.getElementById("sb-ov").classList.remove("open");
 }
 
-/* ── Theme ── */
-function initTheme() {
-  applyTheme(LS.get("theme") || "dark");
+/* ═══════════════════════════
+   IMAGE UPLOAD WIDGET
+═══════════════════════════ */
+function buildImgWidget(containerId, currentSrc, onLoadCb) {
+  const wrap = document.getElementById(containerId);
+  if (!wrap) return;
+  if (currentSrc) {
+    wrap.innerHTML = `<div class="img-preview-box"><img src="${currentSrc}" alt="Preview"/><button class="img-rm-btn" type="button" onclick="rmImg('${containerId}',${JSON.stringify(onLoadCb)})">✕</button></div>`;
+  } else {
+    wrap.innerHTML = `<label class="img-zone"><div class="img-zone-ico">🖼</div><div class="img-zone-lbl">Click to upload photo</div><input type="file" accept="image/*" onchange="loadImg(this,'${containerId}',${JSON.stringify(onLoadCb)})"/></label>`;
+  }
 }
-function toggleTheme() {
-  applyTheme(
-    document.documentElement.getAttribute("data-theme") === "light"
-      ? "dark"
-      : "light",
-  );
+function loadImg(input, containerId, cbName) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    toast("Please select an image file", "err");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const src = e.target.result;
+    buildImgWidget(containerId, src, cbName);
+    if (cbName === "setItemImg") _itemImg = src;
+    else if (cbName === "setCatImg") _catImg = src;
+  };
+  reader.onerror = () => toast("Could not read file", "err");
+  reader.readAsDataURL(file);
 }
-function applyTheme(t) {
-  document.documentElement.setAttribute("data-theme", t);
-  LS.set("theme", t);
-  document.getElementById("th-ico").textContent = t === "dark" ? "☀️" : "🌙";
-  document.getElementById("th-lbl").textContent =
-    t === "dark" ? "Light Mode" : "Dark Mode";
-}
-
-/* ── Toast ── */
-function toast(msg, type = "ok") {
-  const icons = { ok: "✓", err: "✗", amber: "✦", info: "ℹ" };
-  const el = document.createElement("div");
-  el.className = "toast " + type;
-  el.innerHTML = `<span>${icons[type] || "•"}</span>${msg}`;
-  document.getElementById("toasts").appendChild(el);
-  requestAnimationFrame(() =>
-    requestAnimationFrame(() => el.classList.add("in")),
-  );
-  setTimeout(() => {
-    el.classList.remove("in");
-    el.classList.add("out");
-    setTimeout(() => el.remove(), 350);
-  }, 3000);
-}
-
-/* ── Modal ── */
-function openMo(id) {
-  document.getElementById(id).classList.add("open");
-}
-function closeMo(id) {
-  document.getElementById(id).classList.remove("open");
-}
-document.querySelectorAll(".modal-bg").forEach((m) =>
-  m.addEventListener("click", (e) => {
-    if (e.target === m) m.classList.remove("open");
-  }),
-);
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape")
-    document
-      .querySelectorAll(".modal-bg.open")
-      .forEach((m) => m.classList.remove("open"));
-});
-function clrErr(id) {
-  const m = document.getElementById(id);
-  if (!m) return;
-  m.querySelectorAll(".fc").forEach((f) => f.classList.remove("invalid"));
-  m.querySelectorAll(".ferr").forEach((e) => e.classList.remove("show"));
-}
-function fErr(fi, ei) {
-  const f = document.getElementById(fi),
-    e = document.getElementById(ei);
-  if (f) f.classList.add("invalid");
-  if (e) e.classList.add("show");
+function rmImg(containerId, cbName) {
+  buildImgWidget(containerId, null, cbName);
+  if (cbName === "setItemImg") _itemImg = null;
+  else if (cbName === "setCatImg") _catImg = null;
 }
 
-/* ── CATEGORIES CRUD ── */
+/* ═══════════════════════════
+   CATEGORIES CRUD
+═══════════════════════════ */
 function openCatModal(id = null) {
   clrErr("mo-cat");
   _catImg = null;
@@ -521,8 +671,14 @@ function saveCat() {
   fillCatSel();
   closeMo("mo-cat");
 }
-function delCat(id) {
-  if (!confirm("Delete this category?")) return;
+async function delCat(id) {
+  const ok = await swalConfirm(
+    "Delete Category?",
+    "This will not delete its items.",
+    "Delete",
+    "warning",
+  );
+  if (!ok) return;
   DB.cats = DB.cats.filter((x) => x.id !== id);
   save("cats");
   renderCatsTable();
@@ -547,7 +703,9 @@ function renderCatsTable() {
     .join("");
 }
 
-/* ── ITEMS CRUD ── */
+/* ═══════════════════════════
+   ITEMS CRUD
+═══════════════════════════ */
 function fillCatSel() {
   const sel = document.getElementById("fi-cat"),
     cur = sel.value;
@@ -614,8 +772,14 @@ function saveItem() {
   renderMenu();
   closeMo("mo-item");
 }
-function delItem(id) {
-  if (!confirm("Remove this dish?")) return;
+async function delItem(id) {
+  const ok = await swalConfirm(
+    "Remove Dish?",
+    "This cannot be undone.",
+    "Remove",
+    "warning",
+  );
+  if (!ok) return;
   DB.items = DB.items.filter((x) => x.id !== id);
   save("items");
   renderItemsTable();
@@ -642,12 +806,14 @@ function renderItemsTable() {
       const imgHtml = it.img
         ? `<div style="width:44px;height:44px;border-radius:9px;overflow:hidden;border:1px solid var(--border)"><img src="${it.img}" style="width:100%;height:100%;object-fit:cover"/></div>`
         : `<div style="width:44px;height:44px;border-radius:9px;background:var(--mist);border:1px solid var(--border);display:flex;align-items:center;justify-content:center">${getSVG(cat.name)}</div>`;
-      return `<tr><td>${imgHtml}</td><td><div><div style="font-family:var(--ff-display);font-size:.93rem">${it.name}</div><div style="font-size:.67rem;color:var(--soft)">${it.desc || ""}</div></div></td><td><span class="badge ${TAG_CLASS[cat.tag] || "b-gray"}">${cat.name}</span></td><td style="font-family:var(--ff-display);font-size:.95rem;color:var(--amber3)">${Number(it.price).toFixed(2)}</td><td><span class="badge ${it.status === "on" ? "b-green" : "b-red"}">${it.status === "on" ? "Available" : "86'd"}</span></td><td><div class="dt-acts"><button class="btn btn-sm btn-ghost" onclick="openItemModal('${it.id}')">Edit</button><button class="btn btn-sm btn-red" onclick="delItem('${it.id}')">✕</button></div></td></tr>`;
+      return `<tr><td>${imgHtml}</td><td><div><div style="font-family:var(--ff-display);font-size:.93rem">${it.name}</div><div style="font-size:.67rem;color:var(--soft)">${it.desc || ""}</div></div></td><td><span class="badge ${TAG_CLASS[cat.tag] || "b-gray"}">${cat.name}</span></td><td style="font-family:var(--ff-display);font-size:.95rem;color:var(--amber3)">RS ${Number(it.price).toFixed(0)}</td><td><span class="badge ${it.status === "on" ? "b-green" : "b-red"}">${it.status === "on" ? "Available" : "86'd"}</span></td><td><div class="dt-acts"><button class="btn btn-sm btn-ghost" onclick="openItemModal('${it.id}')">Edit</button><button class="btn btn-sm btn-red" onclick="delItem('${it.id}')">✕</button></div></td></tr>`;
     })
     .join("");
 }
 
-/* ── STAFF CRUD ── */
+/* ═══════════════════════════
+   STAFF CRUD
+═══════════════════════════ */
 function openStaffModal(id = null) {
   clrErr("mo-staff");
   document.getElementById("mo-staff-title").textContent = id
@@ -685,8 +851,9 @@ function saveStaff() {
   syncServer();
   closeMo("mo-staff");
 }
-function delStaff(id) {
-  if (!confirm("Remove?")) return;
+async function delStaff(id) {
+  const ok = await swalConfirm("Remove Staff Member?", "", "Remove", "warning");
+  if (!ok) return;
   DB.staff = DB.staff.filter((x) => x.id !== id);
   save("staff");
   renderStaffTable();
@@ -721,7 +888,9 @@ function syncServer() {
       .join("");
 }
 
-/* ── TABLES CRUD ── */
+/* ═══════════════════════════
+   TABLES CRUD
+═══════════════════════════ */
 const TBL_ICO = { avail: "🪑", busy: "🍽", rsrvd: "📋", clean: "🧹" };
 const TBL_LBL = {
   avail: "Available",
@@ -729,6 +898,7 @@ const TBL_LBL = {
   rsrvd: "Reserved",
   clean: "Cleaning",
 };
+
 function openTblModal(id = null) {
   clrErr("mo-tbl");
   document.getElementById("mo-tbl-title").textContent = id
@@ -783,7 +953,7 @@ function renderTables() {
     .map((t) => {
       const openTab = DB.tabs.find((tb) => tb.tableId === t.id);
       const openInfo = openTab
-        ? `<div class="tbl-open" style="display:block">Open tab: ${openTab.items.reduce((s, i) => s + i.qty, 0)} items</div>`
+        ? `<div class="tbl-open" style="display:block">Tab open · ${openTab.items.reduce((s, i) => s + i.qty, 0)} items</div>`
         : "";
       return `<div class="tbl ${t.status}">
       <div class="tbl-icon">${TBL_ICO[t.status] || "🪑"}</div>
@@ -792,6 +962,7 @@ function renderTables() {
       <div class="tbl-st">${TBL_LBL[t.status]}</div>
       ${openInfo}
       <div class="tbl-acts">
+        ${openTab ? `<button class="tbl-act" onclick="switchTab('${openTab.id}');nav('pos')">Open Tab</button>` : ""}
         <button class="tbl-act" onclick="setTblStatus('${t.id}','avail')">Free</button>
         <button class="tbl-act" onclick="setTblStatus('${t.id}','busy')">Busy</button>
         <button class="tbl-act" onclick="openTblModal('${t.id}')">Edit</button>
@@ -803,18 +974,29 @@ function renderTables() {
 function syncTable() {
   const sel = document.getElementById("f-table"),
     cur = sel.value;
+  // Mark tables that already have an open tab (excluding the current tab's table)
+  const tab = DB.tabs.find((t) => t.id === TAB_ID);
+  const currentTabTableId = tab ? tab.tableId : "";
   sel.innerHTML =
     '<option value="">Takeaway</option>' +
     DB.tables
-      .map(
-        (t) =>
-          `<option value="${t.id}" ${t.id === cur ? "selected" : ""}>${t.name} (${TBL_LBL[t.status]})</option>`,
-      )
+      .map((t) => {
+        const existingTab = DB.tabs.find(
+          (tb) => tb.tableId === t.id && tb.id !== TAB_ID,
+        );
+        const blocked = existingTab ? " (Tab open)" : "";
+        const disabled = existingTab ? "disabled" : "";
+        const selected = t.id === cur ? "selected" : "";
+        return `<option value="${t.id}" ${selected} ${disabled}>${t.name}${blocked} (${TBL_LBL[t.status]})</option>`;
+      })
       .join("");
 }
-function onTblChange() {}
 
-/* ── OPEN TABS ── */
+/* ═══════════════════════════
+   TABLE-SCOPED TAB SYSTEM
+   One tab per table max.
+   Multiple tables = multiple tabs.
+═══════════════════════════ */
 function getOrCreateTab() {
   if (TAB_ID) {
     const t = DB.tabs.find((t) => t.id === TAB_ID);
@@ -831,14 +1013,17 @@ function getOrCreateTab() {
     items: [],
     note: "",
     payment: "Cash",
+    kotCount: 0,
   };
   DB.tabs.push(tab);
   save("tabs");
   return tab;
 }
+
 function loadTab(tab) {
   TAB_ID = tab.id;
   CART = [...tab.items];
+  KOT_PENDING = new Set(); // reset pending on tab switch
   document.getElementById("f-guest").value = tab.guest || "";
   document.getElementById("f-table").value = tab.tableId || "";
   document.getElementById("f-server").value = tab.staffId || "";
@@ -858,17 +1043,39 @@ function loadTab(tab) {
   renderCart();
   syncBadge();
   renderTabsStrip();
+  updateKotBtn();
 }
+
 function persistTab() {
   if (!TAB_ID) return;
   const tab = DB.tabs.find((t) => t.id === TAB_ID);
   if (!tab) return;
   tab.items = [...CART];
   tab.guest = document.getElementById("f-guest").value.trim();
-  tab.tableId = document.getElementById("f-table").value;
   tab.staffId = document.getElementById("f-server").value;
   tab.note = document.getElementById("f-note").value.trim();
   tab.payment = PAY;
+  // TABLE SCOPING — prevent double-assignment
+  const chosenTable = document.getElementById("f-table").value;
+  if (chosenTable && chosenTable !== tab.tableId) {
+    // Check if another tab already uses this table
+    const conflict = DB.tabs.find(
+      (tb) => tb.tableId === chosenTable && tb.id !== TAB_ID,
+    );
+    if (conflict) {
+      Swal.fire({
+        title: "Table Already Occupied",
+        text: `${DB.tables.find((t) => t.id === chosenTable)?.name || "This table"} already has an open tab. Switch to that tab or choose another table.`,
+        icon: "warning",
+        confirmButtonText: "OK",
+      });
+      document.getElementById("f-table").value = tab.tableId; // revert
+    } else {
+      tab.tableId = chosenTable;
+    }
+  } else if (!chosenTable) {
+    tab.tableId = "";
+  }
   const tbl = DB.tables.find((t) => t.id === tab.tableId);
   tab.tableName = tbl ? tbl.name : "Takeaway";
   const srv = DB.staff.find((s) => s.id === tab.staffId);
@@ -876,6 +1083,33 @@ function persistTab() {
   save("tabs");
   renderTabsStrip();
 }
+
+function onTblChange() {
+  const chosenTable = document.getElementById("f-table").value;
+  if (!chosenTable) return;
+  const conflict = DB.tabs.find(
+    (tb) => tb.tableId === chosenTable && tb.id !== TAB_ID,
+  );
+  if (conflict) {
+    Swal.fire({
+      title: "Table Already Has an Open Tab",
+      html: `<b>${DB.tables.find((t) => t.id === chosenTable)?.name || "This table"}</b> already has an open tab.<br>Would you like to switch to it?`,
+      icon: "info",
+      showCancelButton: true,
+      confirmButtonText: "Switch to That Tab",
+      cancelButtonText: "Keep Current",
+    }).then((r) => {
+      if (r.isConfirmed) {
+        switchTab(conflict.id);
+        nav("pos");
+      } else {
+        document.getElementById("f-table").value =
+          DB.tabs.find((t) => t.id === TAB_ID)?.tableId || "";
+      }
+    });
+  }
+}
+
 function switchTab(tabId) {
   persistTab();
   const t = DB.tabs.find((x) => x.id === tabId);
@@ -889,6 +1123,7 @@ function killTab(tabId) {
     else {
       TAB_ID = null;
       CART = [];
+      KOT_PENDING = new Set();
       const nt = getOrCreateTab();
       TAB_ID = nt.id;
       loadTab(nt);
@@ -897,6 +1132,7 @@ function killTab(tabId) {
   renderTabsStrip();
   renderOpenTabs();
 }
+
 function renderTabsStrip() {
   const area = document.getElementById("tabs-chips");
   const pill = document.getElementById("tabs-pill");
@@ -920,13 +1156,15 @@ function renderTabsStrip() {
           : tab.guest
             ? tab.guest.split(" ")[0]
             : "Tab " + tab.id.slice(-4).toUpperCase();
-      const cnt = tab.items.reduce((s, i) => s + i.qty, 0);
-      return `<div class="tab-chip ${tab.id === TAB_ID ? "active" : ""}" onclick="switchTab('${tab.id}');nav('pos')">${lbl}${cnt ? ` <span style="opacity:.55">(${cnt})</span>` : ""}</div>`;
+      const c = tab.items.reduce((s, i) => s + i.qty, 0);
+      return `<div class="tab-chip ${tab.id === TAB_ID ? "active" : ""}" onclick="switchTab('${tab.id}');nav('pos')">${lbl}${c ? ` <span style="opacity:.55">(${c})</span>` : ""}</div>`;
     })
     .join("");
 }
 
-/* ── CART ── */
+/* ═══════════════════════════
+   CART
+═══════════════════════════ */
 function buildCatBar() {
   const bar = document.getElementById("cat-bar");
   bar.innerHTML =
@@ -981,7 +1219,7 @@ function renderMenu() {
       <div class="mc-body">
         <div class="mc-name">${it.name}</div>
         <div class="mc-cat-label">${cat.name}</div>
-        <div class="mc-price"><span class="cur"></span>${Number(it.price).toFixed(2)}</div>
+        <div class="mc-price"><span class="cur">RS </span>${Number(it.price).toFixed(0)}</div>
       </div>
       <div class="flash-ring"></div>
     </div>`;
@@ -999,10 +1237,12 @@ function addToCart(itemId, el) {
   el.classList.add("flash");
   setTimeout(() => el.classList.remove("flash"), 400);
   const ex = CART.find((c) => c.itemId === itemId);
-  if (ex) ex.qty++;
-  else {
+  if (ex) {
+    ex.qty++;
+    KOT_PENDING.add(ex.id); // mark as having new qty — track by id
+  } else {
     const cat = DB.cats.find((c) => c.id === item.catId) || { name: "" };
-    CART.push({
+    const newCI = {
       id: uid(),
       itemId,
       name: item.name,
@@ -1010,34 +1250,53 @@ function addToCart(itemId, el) {
       qty: 1,
       img: item.img,
       catName: cat.name,
-    });
+      kotSent: false,
+    };
+    CART.push(newCI);
+    KOT_PENDING.add(newCI.id);
   }
   persistTab();
   renderCart();
   syncBadge();
+  updateKotBtn();
 }
+
 function adjQty(cid, d) {
   const i = CART.findIndex((c) => c.id === cid);
   if (i < 0) return;
   CART[i].qty += d;
-  if (CART[i].qty <= 0) CART.splice(i, 1);
+  if (CART[i].qty <= 0) {
+    KOT_PENDING.delete(cid);
+    CART.splice(i, 1);
+  } else if (d > 0) KOT_PENDING.add(cid);
   persistTab();
   renderCart();
   syncBadge();
+  updateKotBtn();
 }
 function rmCI(cid) {
   CART = CART.filter((c) => c.id !== cid);
+  KOT_PENDING.delete(cid);
   persistTab();
   renderCart();
   syncBadge();
+  updateKotBtn();
 }
-function clearOrder() {
+async function clearOrder() {
   if (!CART.length) return;
-  if (!confirm("Clear this order?")) return;
+  const ok = await swalConfirm(
+    "Clear This Order?",
+    "All items will be removed.",
+    "Clear",
+    "warning",
+  );
+  if (!ok) return;
   CART = [];
+  KOT_PENDING = new Set();
   persistTab();
   renderCart();
   syncBadge();
+  updateKotBtn();
 }
 function syncBadge() {
   const n = CART.reduce((s, i) => s + i.qty, 0),
@@ -1057,40 +1316,59 @@ function selPay(btn) {
 function renderCart() {
   const area = document.getElementById("cart-area"),
     tots = document.getElementById("op-totals");
+  const kotBar = document.getElementById("kot-status-bar");
   if (!CART.length) {
     area.innerHTML = `<div class="cart-empty-state"><div class="ces-icon"><svg width="36" height="36" viewBox="0 0 36 36" fill="none"><circle cx="18" cy="18" r="17" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 3"/><path d="M12 24c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="14.5" cy="15.5" r="1.5" fill="currentColor"/><circle cx="21.5" cy="15.5" r="1.5" fill="currentColor"/></svg></div><div class="ces-text">Tap a dish to begin</div></div>`;
     tots.style.display = "none";
+    kotBar.style.display = "none";
     return;
   }
   area.innerHTML = CART.map((c, i) => {
     const imgEl = c.img
       ? `<img src="${c.img}" alt=""/>`
       : `${getSVG(c.catName || "").replace('width="40" height="40"', 'width="22" height="22"')}`;
-    return `${i > 0 ? '<div class="ci-sep"></div>' : ""}<div class="ci"><div class="ci-img">${imgEl}</div><div class="ci-info"><div class="ci-name">${c.name}</div><div class="ci-unit">${c.price.toFixed(2)} each</div></div><div class="qty-row"><button class="qb" onclick="adjQty('${c.id}',-1)">−</button><span class="qv">${c.qty}</span><button class="qb" onclick="adjQty('${c.id}',1)">+</button></div><span class="ci-total">${(c.price * c.qty).toFixed(2)}</span><button class="ci-del" onclick="rmCI('${c.id}')">✕</button></div>`;
+    const isPending = KOT_PENDING.has(c.id);
+    const kotDot = `<div class="ci-kot-dot ${isPending ? "pending" : "sent"}" title="${isPending ? "Pending KOT" : "KOT Sent"}"></div>`;
+    return `${i > 0 ? '<div class="ci-sep"></div>' : ""}<div class="ci"><div class="ci-img">${imgEl}</div><div class="ci-info"><div class="ci-name">${c.name}</div><div class="ci-unit">RS ${c.price.toFixed(0)} each</div></div>${kotDot}<div class="qty-row"><button class="qb" onclick="adjQty('${c.id}',-1)">−</button><span class="qv">${c.qty}</span><button class="qb" onclick="adjQty('${c.id}',1)">+</button></div><span class="ci-total">RS ${(c.price * c.qty).toFixed(0)}</span><button class="ci-del" onclick="rmCI('${c.id}')">✕</button></div>`;
   }).join("");
   tots.style.display = "block";
   recalc();
+  // KOT status bar
+  const pendingCount = KOT_PENDING.size;
+  if (pendingCount > 0) {
+    kotBar.style.display = "flex";
+    document.getElementById("kot-pending-n").textContent =
+      pendingCount + " new item" + (pendingCount !== 1 ? "s" : "");
+  } else {
+    kotBar.style.display = "none";
+  }
 }
+
 function recalc() {
   const disc = parseFloat(document.getElementById("f-disc").value) || 0;
   const sub = CART.reduce((s, i) => s + i.price * i.qty, 0);
   const da = Math.min(disc, sub),
     tax = (sub - da) * TAX,
     grand = sub - da + tax;
-  document.getElementById("t-sub").textContent = sub.toFixed(2);
-  document.getElementById("t-tax").textContent = tax.toFixed(2);
-  document.getElementById("t-total").textContent = grand.toFixed(2);
+  document.getElementById("t-sub").textContent = "RS " + sub.toFixed(0);
+  document.getElementById("t-tax").textContent = "RS " + tax.toFixed(0);
+  document.getElementById("t-total").textContent = "RS " + grand.toFixed(0);
   const dr = document.getElementById("t-disc-row");
   if (da > 0) {
     dr.style.display = "flex";
-    document.getElementById("t-disc").textContent = "-$" + da.toFixed(2);
+    document.getElementById("t-disc").textContent = "-RS " + da.toFixed(0);
   } else dr.style.display = "none";
   return { sub, da, tax, grand };
 }
 
 function saveTab() {
   if (!CART.length && !document.getElementById("f-guest").value.trim()) {
-    toast("Add items or a guest first", "err");
+    Swal.fire({
+      title: "Empty Tab",
+      text: "Add at least one item or a customer name first.",
+      icon: "info",
+      confirmButtonText: "OK",
+    });
     return;
   }
   persistTab();
@@ -1098,7 +1376,131 @@ function saveTab() {
   renderTabsStrip();
 }
 
-/* ── OPEN TABS PAGE ── */
+/* ═══════════════════════════
+   KOT — Kitchen Order Ticket
+═══════════════════════════ */
+function updateKotBtn() {
+  const btn = document.getElementById("kot-btn");
+  if (KOT_PENDING.size > 0) btn.classList.add("has-items");
+  else btn.classList.remove("has-items");
+}
+
+function printKOT() {
+  if (!CART.length) {
+    Swal.fire({
+      title: "No Items",
+      text: "Add items to the order first.",
+      icon: "info",
+      confirmButtonText: "OK",
+    });
+    return;
+  }
+  // Build KOT for all pending items (new items not yet KOT-printed)
+  const pendingItems =
+    KOT_PENDING.size > 0 ? CART.filter((c) => KOT_PENDING.has(c.id)) : CART; // If nothing pending, show all items
+
+  const tab = DB.tabs.find((t) => t.id === TAB_ID);
+  const tableName =
+    tab?.tableName ||
+    document.getElementById("f-table").options[
+      document.getElementById("f-table").selectedIndex
+    ]?.text ||
+    "Takeaway";
+  const serverName =
+    DB.staff.find((s) => s.id === document.getElementById("f-server").value)
+      ?.name || "—";
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const dateStr = now.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  const kotHtml = buildKOTHtml({
+    kotNum: KOT_NUM,
+    table: tableName,
+    server: serverName,
+    time: timeStr,
+    date: dateStr,
+    items: pendingItems,
+    isPartial: KOT_PENDING.size > 0 && KOT_PENDING.size < CART.length,
+  });
+
+  document.getElementById("kot-area").innerHTML = kotHtml;
+  openMo("mo-kot");
+}
+
+function buildKOTHtml({ kotNum, table, server, time, date, items, isPartial }) {
+  const rows = items
+    .map(
+      (i) =>
+        `<div class="kot-item new">
+      <span class="kot-item-name">${i.name} <span class="new-badge">NEW</span></span>
+      <span class="kot-item-qty">×${i.qty}</span>
+    </div>`,
+    )
+    .join("");
+
+  return `<div class="kot-print">
+    <div class="kot-header">
+      <div class="kot-title">Kitchen Order Ticket</div>
+      <div class="kot-sub">The Sale Point POS</div>
+    </div>
+    <div class="kot-meta">
+      <div class="kot-meta-row"><span>KOT #</span><strong>${kotNum}</strong></div>
+      <div class="kot-meta-row"><span>Table</span><strong>${table}</strong></div>
+      <div class="kot-meta-row"><span>Server</span><strong>${server}</strong></div>
+      <div class="kot-meta-row"><span>Time</span><strong>${time}</strong></div>
+      <div class="kot-meta-row"><span>Date</span><strong>${date}</strong></div>
+      ${isPartial ? `<div class="kot-meta-row"><span>Type</span><strong style="color:#F59E0B">ADD-ON ORDER</strong></div>` : ""}
+    </div>
+    <div class="kot-items-head"><span>Item</span><span>Qty</span></div>
+    ${rows}
+    <div class="kot-footer">
+      <div class="kot-footer-txt">Please prepare immediately</div>
+      <div class="kot-num">${date} · ${time}</div>
+    </div>
+  </div>`;
+}
+
+function doPrintKOT() {
+  // Mark pending items as KOT-sent
+  KOT_PENDING.forEach((id) => {
+    const ci = CART.find((c) => c.id === id);
+    if (ci) ci.kotSent = true;
+  });
+  KOT_PENDING = new Set();
+
+  // Increment KOT number
+  KOT_NUM++;
+  LS.set("kot_num", KOT_NUM);
+
+  // Update tab kotCount
+  const tab = DB.tabs.find((t) => t.id === TAB_ID);
+  if (tab) {
+    tab.kotCount = (tab.kotCount || 0) + 1;
+    save("tabs");
+  }
+
+  // Print
+  document.getElementById("print-zone").innerHTML =
+    document.getElementById("kot-area").innerHTML;
+  window.print();
+
+  closeMo("mo-kot");
+  persistTab();
+  renderCart();
+  updateKotBtn();
+  toast("KOT printed successfully", "ok");
+}
+
+/* ═══════════════════════════
+   OPEN TABS PAGE
+═══════════════════════════ */
 function renderOpenTabs() {
   const g = document.getElementById("tabs-grid");
   const open = DB.tabs.filter((t) => t.items.length > 0 || t.guest);
@@ -1116,7 +1518,7 @@ function renderOpenTabs() {
           const imgEl = i.img
             ? `<img src="${i.img}" alt=""/>`
             : `${getSVG(i.catName || "").replace('width="40" height="40"', 'width="18" height="18"')}`;
-          return `<div class="ot-item"><div class="ot-item-img">${imgEl}</div><span class="ot-item-name">${i.name}</span><span class="ot-item-qty">×${i.qty}</span><span class="ot-item-price">${(i.price * i.qty).toFixed(2)}</span></div>`;
+          return `<div class="ot-item"><div class="ot-item-img">${imgEl}</div><span class="ot-item-name">${i.name}</span><span class="ot-item-qty">×${i.qty}</span><span class="ot-item-price">RS ${(i.price * i.qty).toFixed(0)}</span></div>`;
         })
         .join("");
       const meta =
@@ -1140,7 +1542,7 @@ function renderOpenTabs() {
       </div>
       <div class="ot-items">${rows || '<div style="font-size:.77rem;color:var(--soft);padding:10px 0;font-style:italic">No items yet</div>'}</div>
       <div class="ot-foot">
-        <div><div class="ot-total-l">Running Total</div><div class="ot-total-n">${tot.toFixed(2)}</div></div>
+        <div><div class="ot-total-l">Running Total</div><div class="ot-total-n">RS ${tot.toFixed(0)}</div></div>
         <div class="ot-actions">
           <button class="btn btn-sm btn-outline" onclick="switchTab('${tab.id}');nav('pos')">+ Add Items</button>
           <button class="btn btn-sm btn-amber" onclick="switchTab('${tab.id}');nav('pos');setTimeout(()=>confirmOrder(),400)">Bill</button>
@@ -1151,13 +1553,38 @@ function renderOpenTabs() {
     .join("");
 }
 
-/* ── CONFIRM & BILL ── */
-function confirmOrder() {
+/* ═══════════════════════════
+   CONFIRM & BILL
+═══════════════════════════ */
+async function confirmOrder() {
   persistTab();
   const tab = DB.tabs.find((t) => t.id === TAB_ID);
   if (!tab || !tab.items.length) {
-    toast("No items in this order", "err");
+    Swal.fire({
+      title: "Empty Order",
+      text: "No items in this order.",
+      icon: "warning",
+      confirmButtonText: "OK",
+    });
     return;
+  }
+  // Warn if there are unprinted KOT items
+  if (KOT_PENDING.size > 0) {
+    const res = await Swal.fire({
+      title: "Unprinted KOT Items",
+      text: `There are ${KOT_PENDING.size} item(s) not yet sent to kitchen. Print KOT before closing?`,
+      icon: "warning",
+      showDenyButton: true,
+      showCancelButton: true,
+      confirmButtonText: "Print KOT First",
+      denyButtonText: "Close Without KOT",
+      cancelButtonText: "Cancel",
+    });
+    if (res.isConfirmed) {
+      printKOT();
+      return;
+    }
+    if (res.isDismissed) return;
   }
   const { sub, da, tax, grand } = recalc();
   const now = new Date();
@@ -1181,7 +1608,7 @@ function confirmOrder() {
   DB.orders.push(order);
   save("orders");
   ORDER_NUM++;
-  if (tab.tableId) setTblStatus(tab.tableId, "busy");
+  if (tab.tableId) setTblStatus(tab.tableId, "avail"); // Free the table
   DB.tabs = DB.tabs.filter((t) => t.id !== tab.id);
   save("tabs");
   document.getElementById("rcpt-area").innerHTML = buildRcpt(order);
@@ -1189,13 +1616,16 @@ function confirmOrder() {
   toast("Order #" + order.num + " confirmed ✦", "amber");
   TAB_ID = null;
   CART = [];
+  KOT_PENDING = new Set();
   const nt = getOrCreateTab();
   TAB_ID = nt.id;
   renderCart();
   syncBadge();
   renderTabsStrip();
+  updateKotBtn();
   refreshPOS();
 }
+
 function buildRcpt(o) {
   const d = new Date(o.createdAt);
   const ds = d.toLocaleDateString("en-US", {
@@ -1213,11 +1643,12 @@ function buildRcpt(o) {
       const imgEl = i.img
         ? `<img src="${i.img}" alt=""/>`
         : `${getSVG(i.catName || "").replace('width="40" height="40"', 'width="16" height="16"')}`;
-      return `<div class="rcpt-item"><div class="rcpt-item-img">${imgEl}</div><span class="rcpt-item-name">${i.name}</span><span class="rcpt-item-qty">×${i.qty}</span><span class="rcpt-item-amt">${(i.price * i.qty).toFixed(2)}</span></div>`;
+      return `<div class="rcpt-item"><div class="rcpt-item-img">${imgEl}</div><span class="rcpt-item-name">${i.name}</span><span class="rcpt-item-qty">×${i.qty}</span><span class="rcpt-item-amt">RS ${(i.price * i.qty).toFixed(0)}</span></div>`;
     })
     .join("");
-  return `<div class="rcpt"><div class="rcpt-top"><div class="rcpt-logo">Maison</div><div class="rcpt-sub">Fine Dining & Cuisine</div><hr class="rcpt-hr"><div class="rcpt-oid">Order #${o.num} · ${o.id.toUpperCase().slice(0, 10)}</div></div><div class="rcpt-body"><div class="rcpt-meta"><div class="rcpt-mr"><span>Date</span><strong>${ds}</strong></div><div class="rcpt-mr"><span>Time</span><strong>${ts}</strong></div><div class="rcpt-mr"><span>Guest</span><strong>${o.guest}</strong></div><div class="rcpt-mr"><span>Table</span><strong>${o.tableName}</strong></div><div class="rcpt-mr"><span>Server</span><strong>${o.staffName}</strong></div></div><div class="rcpt-items-hd"><span>Dish</span><span>Qty</span><span>Amount</span></div>${rows}<div class="rcpt-sums"><div class="rcpt-sr"><span>Subtotal</span><span>${o.subtotal.toFixed(2)}</span></div>${o.discount > 0 ? `<div class="rcpt-sr" style="color:#059669"><span>Discount</span><span>-${o.discount.toFixed(2)}</span></div>` : ""}<div class="rcpt-sr"><span>Service Charge</span><span>${o.tax.toFixed(2)}</span></div><div class="rcpt-sr grand"><span class="rsl">Total</span><span class="rsv">${o.total.toFixed(2)}</span></div></div><div class="rcpt-pay-row"><span>Payment</span><strong>${o.payMethod}</strong></div>${o.note ? `<div style="margin-top:8px;padding:6px 10px;background:#f0ece4;border-radius:5px;font-size:.7rem;color:#7a7268">Note: ${o.note}</div>` : ""}</div><div class="rcpt-foot"><div class="rcpt-dots"></div><div class="rcpt-thanks">Thank you for dining with us</div><div class="rcpt-sub-msg">We hope to see you again</div></div></div>`;
+  return `<div class="rcpt"><div class="rcpt-top"><div class="rcpt-logo">The Sale Point</div><div class="rcpt-sub">Restaurant POS</div><hr class="rcpt-hr"/><div class="rcpt-oid">Order #${o.num} · ${o.id.toUpperCase().slice(0, 10)}</div></div><div class="rcpt-body"><div class="rcpt-meta"><div class="rcpt-mr"><span>Date</span><strong>${ds}</strong></div><div class="rcpt-mr"><span>Time</span><strong>${ts}</strong></div><div class="rcpt-mr"><span>Guest</span><strong>${o.guest}</strong></div><div class="rcpt-mr"><span>Table</span><strong>${o.tableName}</strong></div><div class="rcpt-mr"><span>Server</span><strong>${o.staffName}</strong></div></div><div class="rcpt-items-hd"><span>Dish</span><span>Qty</span><span>Amount</span></div>${rows}<div class="rcpt-sums"><div class="rcpt-sr"><span>Subtotal</span><span>RS ${o.subtotal.toFixed(0)}</span></div>${o.discount > 0 ? `<div class="rcpt-sr" style="color:#059669"><span>Discount</span><span>-RS ${o.discount.toFixed(0)}</span></div>` : ""}<div class="rcpt-sr"><span>Tax</span><span>RS ${o.tax.toFixed(0)}</span></div><div class="rcpt-sr grand"><span class="rsl">Total</span><span class="rsv">RS ${o.total.toFixed(0)}</span></div></div><div class="rcpt-pay-row"><span>Payment</span><strong>${o.payMethod}</strong></div>${o.note ? `<div style="margin-top:8px;padding:6px 10px;background:#f0ece4;border-radius:5px;font-size:.7rem;color:#7a7268">Note: ${o.note}</div>` : ""}</div><div class="rcpt-foot"><div class="rcpt-dots">· · · · · · ·</div><div class="rcpt-thanks">Thank you for visiting!</div><div class="rcpt-sub-msg">Please come again</div></div></div>`;
 }
+
 function printRcpt() {
   document.getElementById("print-zone").innerHTML =
     document.getElementById("rcpt-area").innerHTML;
@@ -1230,7 +1661,9 @@ function viewRcpt(id) {
   openMo("mo-rcpt");
 }
 
-/* ── ORDER HISTORY ── */
+/* ═══════════════════════════
+   ORDER HISTORY
+═══════════════════════════ */
 function renderHistory() {
   const feed = document.getElementById("history-feed"),
     q = (document.getElementById("q-orders") || {}).value || "";
@@ -1250,13 +1683,20 @@ function renderHistory() {
     .map((o) => {
       const d = new Date(o.createdAt);
       const items = o.items.map((i) => i.name).join(", ");
-      return `<div class="oh-item"><div class="oh-num"><div class="oh-n">#${o.num}</div><div class="oh-d">${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div></div><div class="oh-body"><div class="oh-guest">${o.guest}</div><div class="oh-items-txt">${items.slice(0, 65)}${items.length > 65 ? "…" : ""}</div><div class="oh-tags"><span class="badge b-amber">${o.tableName}</span><span class="badge b-green">${o.payMethod}</span><span class="badge b-gray">${o.items.reduce((s, i) => s + i.qty, 0)} covers</span>${o.staffName && o.staffName !== "—" ? `<span class="badge b-blue">${o.staffName}</span>` : ""}</div></div><div class="oh-right"><div class="oh-total">${o.total.toFixed(2)}</div><div class="oh-time">${d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</div><div class="oh-acts"><button class="btn btn-sm btn-outline" onclick="viewRcpt('${o.id}')">Receipt</button></div></div></div>`;
+      return `<div class="oh-item"><div class="oh-num"><div class="oh-n">#${o.num}</div><div class="oh-d">${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div></div><div class="oh-body"><div class="oh-guest">${o.guest}</div><div class="oh-items-txt">${items.slice(0, 65)}${items.length > 65 ? "…" : ""}</div><div class="oh-tags"><span class="badge b-amber">${o.tableName}</span><span class="badge b-green">${o.payMethod}</span><span class="badge b-gray">${o.items.reduce((s, i) => s + i.qty, 0)} items</span>${o.staffName && o.staffName !== "—" ? `<span class="badge b-blue">${o.staffName}</span>` : ""}</div></div><div class="oh-right"><div class="oh-total">RS ${o.total.toFixed(0)}</div><div class="oh-time">${d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</div><div class="oh-acts"><button class="btn btn-sm btn-outline" onclick="viewRcpt('${o.id}')">Receipt</button></div></div></div>`;
     })
     .join("");
 }
-function clearHistory() {
+
+async function clearHistory() {
   if (!DB.orders.length) return;
-  if (!confirm("Delete all order history?")) return;
+  const ok = await swalConfirm(
+    "Clear All History?",
+    "This cannot be undone.",
+    "Clear All",
+    "warning",
+  );
+  if (!ok) return;
   DB.orders = [];
   ORDER_NUM = 1;
   save("orders");
@@ -1264,17 +1704,19 @@ function clearHistory() {
   toast("Cleared", "info");
 }
 
-/* ── DASHBOARD ── */
+/* ═══════════════════════════
+   DASHBOARD
+═══════════════════════════ */
 function renderDash() {
   const today = new Date().toDateString();
   const tod = DB.orders.filter(
     (o) => new Date(o.createdAt).toDateString() === today,
   );
-  const todR = tod.reduce((s, o) => s + o.total, 0),
-    totR = DB.orders.reduce((s, o) => s + o.total, 0),
-    avg = DB.orders.length ? totR / DB.orders.length : 0;
+  const todR = tod.reduce((s, o) => s + o.total, 0);
+  const totR = DB.orders.reduce((s, o) => s + o.total, 0);
+  const avg = DB.orders.length ? totR / DB.orders.length : 0;
   document.getElementById("dash-stats").innerHTML =
-    `<div class="stat-card"><div class="stat-bg"></div><div class="stat-n"><span class="cur"></span>${todR.toFixed(0)}</div><div class="stat-l">Today Revenue</div></div><div class="stat-card"><div class="stat-bg">📜</div><div class="stat-n">${tod.length}</div><div class="stat-l">Today Covers</div></div><div class="stat-card"><div class="stat-bg">◈</div><div class="stat-n"><span class="cur"></span>${totR.toFixed(0)}</div><div class="stat-l">Total Revenue</div></div><div class="stat-card"><div class="stat-bg">✦</div><div class="stat-n"><span class="cur"></span>${avg.toFixed(0)}</div><div class="stat-l">Avg Check</div></div>`;
+    `<div class="stat-card"><div class="stat-bg">💰</div><div class="stat-n"><span class="cur">RS </span>${todR.toFixed(0)}</div><div class="stat-l">Today Revenue</div></div><div class="stat-card"><div class="stat-bg">📜</div><div class="stat-n">${tod.length}</div><div class="stat-l">Today Orders</div></div><div class="stat-card"><div class="stat-bg">◈</div><div class="stat-n"><span class="cur">RS </span>${totR.toFixed(0)}</div><div class="stat-l">Total Revenue</div></div><div class="stat-card"><div class="stat-bg">✦</div><div class="stat-n"><span class="cur">RS </span>${avg.toFixed(0)}</div><div class="stat-l">Avg Order</div></div>`;
   document.getElementById("dash-today-n").textContent = tod.length;
   const te = document.getElementById("dash-today");
   if (!tod.length) {
@@ -1286,9 +1728,10 @@ function renderDash() {
       .slice(0, 7)
       .map((o) => {
         const d = new Date(o.createdAt);
-        return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)"><span style="font-size:.66rem;color:var(--soft);white-space:nowrap">${d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span><span style="flex:1;font-family:var(--ff-display);font-size:.92rem">${o.guest}</span><span style="font-family:var(--ff-display);font-size:.95rem;color:var(--amber3)">${o.total.toFixed(2)}</span></div>`;
+        return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)"><span style="font-size:.66rem;color:var(--soft);white-space:nowrap">${d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span><span style="flex:1;font-family:var(--ff-display);font-size:.92rem">${o.guest}</span><span style="font-family:var(--ff-display);font-size:.95rem;color:var(--amber3)">RS ${o.total.toFixed(0)}</span></div>`;
       })
       .join("");
+
   const dc = {};
   DB.orders.forEach((o) =>
     o.items.forEach((i) => {
@@ -1306,9 +1749,10 @@ function renderDash() {
     : td
         .map(
           ([n, d]) =>
-            `<div class="perf-item"><div class="perf-row"><span>${n}</span><span>${d.q}× · ${d.r.toFixed(0)}</span></div><div class="perf-track"><div class="perf-fill" style="width:${(d.r / mx) * 100}%"></div></div></div>`,
+            `<div class="perf-item"><div class="perf-row"><span>${n}</span><span>${d.q}× · RS ${d.r.toFixed(0)}</span></div><div class="perf-track"><div class="perf-fill" style="width:${(d.r / mx) * 100}%"></div></div></div>`,
         )
         .join("");
+
   const cr = {};
   DB.orders.forEach((o) =>
     o.items.forEach((i) => {
@@ -1326,9 +1770,10 @@ function renderDash() {
     : ca
         .map(
           ([n, d]) =>
-            `<div class="perf-item"><div class="perf-row"><span>${n}</span><span style="color:var(--amber3)">${d.r.toFixed(2)}</span></div><div class="perf-track"><div class="perf-fill" style="width:${(d.r / mc) * 100}%"></div></div></div>`,
+            `<div class="perf-item"><div class="perf-row"><span>${n}</span><span style="color:var(--amber3)">RS ${d.r.toFixed(0)}</span></div><div class="perf-track"><div class="perf-fill" style="width:${(d.r / mc) * 100}%"></div></div></div>`,
         )
         .join("");
+
   const sr = {};
   DB.orders.forEach((o) => {
     if (o.staffName && o.staffName !== "—") {
@@ -1343,17 +1788,20 @@ function renderDash() {
     : sa
         .map(
           ([n, d]) =>
-            `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)"><div><div style="font-family:var(--ff-display);font-size:.93rem">${n}</div><div style="font-size:.65rem;color:var(--soft)">${d.n} order${d.n !== 1 ? "s" : ""}</div></div><div style="text-align:right"><div style="font-family:var(--ff-display);font-size:1.05rem;color:var(--amber3)">${d.r.toFixed(2)}</div></div></div>`,
+            `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)"><div><div style="font-family:var(--ff-display);font-size:.93rem">${n}</div><div style="font-size:.65rem;color:var(--soft)">${d.n} order${d.n !== 1 ? "s" : ""}</div></div><div style="text-align:right"><div style="font-family:var(--ff-display);font-size:1.05rem;color:var(--amber3)">RS ${d.r.toFixed(0)}</div></div></div>`,
         )
         .join("");
 }
+
 function renderMaster() {
   renderItemsTable();
   renderCatsTable();
   renderStaffTable();
 }
 
-/* ── REFRESH POS ── */
+/* ═══════════════════════════
+   REFRESH POS
+═══════════════════════════ */
 function refreshPOS() {
   buildCatBar();
   renderMenu();
@@ -1374,9 +1822,12 @@ function refreshPOS() {
   renderCart();
   syncBadge();
   renderTabsStrip();
+  updateKotBtn();
 }
 
-/* ── CLOCK ── */
+/* ═══════════════════════════
+   CLOCK
+═══════════════════════════ */
 function tick() {
   const d = new Date();
   document.getElementById("clk").textContent =
@@ -1389,16 +1840,16 @@ function tick() {
     d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 }
 
-/* ── INIT ── */
-function init() {
+/* ═══════════════════════════
+   INIT
+═══════════════════════════ */
+function initApp() {
   loadDB();
-  initTheme();
   tick();
   setInterval(tick, 30000);
   if (DB.tabs.length > 0) {
     TAB_ID = DB.tabs[DB.tabs.length - 1].id;
-    const tab = DB.tabs[DB.tabs.length - 1];
-    CART = [...tab.items];
+    CART = [...DB.tabs[DB.tabs.length - 1].items];
   } else {
     const tab = getOrCreateTab();
     TAB_ID = tab.id;
@@ -1406,4 +1857,24 @@ function init() {
   refreshPOS();
   renderDash();
 }
-init();
+
+/* ── App boot ── */
+window.addEventListener("DOMContentLoaded", () => {
+  initTheme();
+  // Check saved session
+  const session = LS.get("session");
+  if (session && session.username) {
+    const found = USERS.find((u) => u.username === session.username);
+    if (found) {
+      CURRENT_USER = found;
+      document.getElementById("login-screen").style.display = "none";
+      document.getElementById("app-wrap").style.display = "flex";
+      document.getElementById("user-pill-name").textContent = found.display;
+      initApp();
+      return;
+    }
+  }
+  // Show login
+  document.getElementById("login-screen").style.display = "flex";
+  document.getElementById("app-wrap").style.display = "none";
+});
