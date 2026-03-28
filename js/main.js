@@ -1412,43 +1412,60 @@ function autoSaveTab() {
   renderTabsStrip();
 }
 
-/* Table dropdown change handler — enforce one-tab-per-table.
-   If the selected table already has an open tab, immediately load
-   that tab's full order into the panel (no dialog needed). */
+/* Table dropdown change handler.
+   3 cases:
+   A) Cleared (Takeaway)   → unassign table from current tab, refresh panel header.
+   B) Table has existing tab (another order) → save current, switch to that tab fully.
+   C) Table is free        → assign to current tab, refresh panel header + op-ref. */
 function onTblChange() {
   const chosen = document.getElementById("f-table").value;
+  const tblName = chosen
+    ? DB.tables.find((t) => t.id === chosen)?.name || "Table"
+    : "Takeaway";
 
-  /* Cleared → just save and refresh */
+  /* ── Case A: cleared to Takeaway ── */
   if (!chosen) {
-    saveActiveTab();
+    const tab = getActiveTab();
+    if (tab) {
+      tab.tableId = "";
+      tab.tableName = "Takeaway";
+      save("tabs");
+    }
+    document.getElementById("op-ref").textContent = TAB_ID
+      ? "Tab: " + TAB_ID.slice(-8).toUpperCase() + " — Takeaway"
+      : "New tab";
     renderTabsStrip();
+    syncTableDropdown();
     return;
   }
 
-  /* Table already has a tab owned by someone ELSE → switch to that tab */
+  /* ── Case B: table already has a different open tab → switch to it ── */
   const existingTab = DB.tabs.find(
     (tb) => tb.tableId === chosen && tb.id !== TAB_ID,
   );
   if (existingTab) {
-    /* Save whatever is on screen for the current tab first */
     saveActiveTab();
-    /* Now load the existing table's tab into the panel */
     TAB_ID = existingTab.id;
     KOT_PENDING = new Set();
     loadTabIntoPanel(existingTab);
-    toast(
-      "Switched to " +
-        (DB.tables.find((t) => t.id === chosen)?.name || "table") +
-        " order",
-      "amber",
-    );
+    toast("Showing order for " + tblName, "amber");
     return;
   }
 
-  /* No clash — table is free, assign it to current tab */
-  saveActiveTab();
+  /* ── Case C: free table → assign to current tab, refresh panel ── */
+  const tab = getActiveTab();
+  if (tab) {
+    tab.tableId = chosen;
+    tab.tableName = tblName;
+    const srv = DB.staff.find((s) => s.id === tab.staffId);
+    tab.staffName = srv ? srv.name : "—";
+    save("tabs");
+  }
+  document.getElementById("op-ref").textContent =
+    "Tab: " + (TAB_ID || "").slice(-8).toUpperCase() + " — " + tblName;
   renderTabsStrip();
   syncTableDropdown();
+  renderCart();
 }
 
 function killTab(tabId) {
