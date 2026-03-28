@@ -1379,7 +1379,10 @@ function loadTabIntoPanel(tab) {
   updateKotBtn();
 }
 
-/* Persist panel fields into the active tab object */
+/* Persist panel fields (guest, server, note, payment) into the active tab.
+   tableId is intentionally NOT read from the dropdown here — table assignment
+   happens only when the tab is created (in onTblChange / startNewTabForTable).
+   This prevents accidental re-linking of an order to a different table. */
 function saveActiveTab() {
   if (!TAB_ID) return;
   const tab = DB.tabs.find((t) => t.id === TAB_ID);
@@ -1388,19 +1391,6 @@ function saveActiveTab() {
   tab.staffId = document.getElementById("f-server").value;
   tab.note = document.getElementById("f-note").value.trim();
   tab.payment = PAY;
-  const tblId = document.getElementById("f-table").value;
-  /* only accept the table if no OTHER tab owns it */
-  if (tblId && tblId !== tab.tableId) {
-    const clash = DB.tabs.find(
-      (tb) => tb.tableId === tblId && tb.id !== TAB_ID,
-    );
-    if (!clash) tab.tableId = tblId;
-    /* if clash, silently keep old tableId — user will see disabled option */
-  } else if (!tblId) {
-    tab.tableId = "";
-  }
-  const tbl = DB.tables.find((t) => t.id === tab.tableId);
-  tab.tableName = tbl ? tbl.name : "Takeaway";
   const srv = DB.staff.find((s) => s.id === tab.staffId);
   tab.staffName = srv ? srv.name : "—";
   save("tabs");
@@ -1412,60 +1402,73 @@ function autoSaveTab() {
   renderTabsStrip();
 }
 
-/* Table dropdown change handler.
-   3 cases:
-   A) Cleared (Takeaway)   → unassign table from current tab, refresh panel header.
-   B) Table has existing tab (another order) → save current, switch to that tab fully.
-   C) Table is free        → assign to current tab, refresh panel header + op-ref. */
+/* ═══════════════════════════════════════════════════════
+   TABLE DROPDOWN CHANGE
+   Rule: every table (and Takeaway) gets its OWN independent
+   order. Changing the dropdown NEVER reassigns the current
+   order — it switches the panel to that table's order or
+   creates a fresh empty one if none exists yet.
+
+   Cases:
+   A) Same table already selected  → nothing to do.
+   B) Selected table has an open tab → save current, switch
+      panel to that existing tab so user can view/edit it.
+   C) Selected table is free OR Takeaway selected → save
+      current tab as-is (it stays linked to its original
+      table), then create a brand-new empty tab for the
+      chosen table and load it into the panel.
+══════════════════════════════════════════════════════= */
 function onTblChange() {
   const chosen = document.getElementById("f-table").value;
-  const tblName = chosen
-    ? DB.tables.find((t) => t.id === chosen)?.name || "Table"
-    : "Takeaway";
+  const current = getActiveTab();
 
-  /* ── Case A: cleared to Takeaway ── */
-  if (!chosen) {
-    const tab = getActiveTab();
-    if (tab) {
-      tab.tableId = "";
-      tab.tableName = "Takeaway";
-      save("tabs");
-    }
-    document.getElementById("op-ref").textContent = TAB_ID
-      ? "Tab: " + TAB_ID.slice(-8).toUpperCase() + " — Takeaway"
-      : "New tab";
-    renderTabsStrip();
-    syncTableDropdown();
-    return;
-  }
+  /* ── A: user re-selected the same table already on this tab ── */
+  if (chosen === (current?.tableId || "")) return;
 
-  /* ── Case B: table already has a different open tab → switch to it ── */
+  /* ── B: chosen table already has its own open tab ── */
   const existingTab = DB.tabs.find(
     (tb) => tb.tableId === chosen && tb.id !== TAB_ID,
   );
   if (existingTab) {
-    saveActiveTab();
+    saveActiveTab(); // lock in the current tab unchanged
     TAB_ID = existingTab.id;
     KOT_PENDING = new Set();
-    loadTabIntoPanel(existingTab);
-    toast("Showing order for " + tblName, "amber");
+    loadTabIntoPanel(existingTab); // show that table's full order
+    const nm = chosen
+      ? DB.tables.find((t) => t.id === chosen)?.name
+      : "Takeaway";
+    toast("Switched to " + (nm || "order"), "amber");
     return;
   }
 
-  /* ── Case C: free table → assign to current tab, refresh panel ── */
-  const tab = getActiveTab();
-  if (tab) {
-    tab.tableId = chosen;
-    tab.tableName = tblName;
-    const srv = DB.staff.find((s) => s.id === tab.staffId);
-    tab.staffName = srv ? srv.name : "—";
-    save("tabs");
-  }
-  document.getElementById("op-ref").textContent =
-    "Tab: " + (TAB_ID || "").slice(-8).toUpperCase() + " — " + tblName;
-  renderTabsStrip();
-  syncTableDropdown();
-  renderCart();
+  /* ── C: free table or Takeaway — create a new empty order for it ── */
+  saveActiveTab(); // current tab stays linked to its table
+  const tbl = chosen ? DB.tables.find((t) => t.id === chosen) : null;
+  const tblName = tbl ? tbl.name : "Takeaway";
+  /* Carry server over from the previous tab so staff doesn't need to re-select */
+  const inheritedStaffId = current?.staffId || "";
+
+  const newTab = {
+    id: uid(),
+    createdAt: new Date().toISOString(),
+    guest: "",
+    tableId: chosen,
+    tableName: tblName,
+    staffId: inheritedStaffId,
+    staffName: DB.staff.find((s) => s.id === inheritedStaffId)?.name || "—",
+    items: [],
+    note: "",
+    payment: CFG.defPay || "Cash",
+    kotCount: 0,
+  };
+  DB.tabs.push(newTab);
+  save("tabs");
+  if (tbl) setTblStatus(chosen, "busy");
+
+  TAB_ID = newTab.id;
+  KOT_PENDING = new Set();
+  loadTabIntoPanel(newTab); // panel shows fresh empty order for this table
+  toast("New order started for " + tblName, "ok");
 }
 
 function killTab(tabId) {
