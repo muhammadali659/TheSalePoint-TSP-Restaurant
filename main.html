@@ -9,20 +9,14 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400&family=Geist:wght@300;400;500;600;700&display=swap"
     rel="stylesheet">
-
-  <!-- SweetAlert2 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-  <!-- Theme CSS -->
-  <link rel="stylesheet" type="text/css" href="./css/style.css">
+  <link rel="stylesheet" href="./css/style.css">
 </head>
 
 <body>
 
-  <!-- ═══════════════════════════════════
-       LOGIN SCREEN
-  ═══════════════════════════════════ -->
+  <!-- ═══ LOGIN SCREEN ═══ -->
   <div class="login-screen" id="login-screen">
     <div class="login-bg-overlay"></div>
     <div class="login-card">
@@ -46,12 +40,8 @@
           </div>
           <div class="ferr" id="l-pass-e">Password is required</div>
         </div>
-        <div class="login-error" id="login-error" style="display:none">
-          ⚠ Invalid username or password
-        </div>
-        <button type="submit" class="btn btn-amber btn-block btn-xl login-submit" id="login-btn">
-          Sign In
-        </button>
+        <div class="login-error" id="login-error" style="display:none">⚠ Invalid username or password</div>
+        <button type="submit" class="btn btn-amber btn-block btn-xl login-submit" id="login-btn">Sign In</button>
         <div class="login-hint">Demo: <strong>admin</strong> / <strong>admin123</strong></div>
       </form>
       <div class="login-theme-row">
@@ -65,9 +55,7 @@
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════
-       MAIN APP (hidden until login)
-  ═══════════════════════════════════ -->
+  <!-- ═══ APP ═══ -->
   <div class="app-wrap" id="app-wrap" style="display:none">
 
     <!-- SIDEBAR -->
@@ -79,53 +67,41 @@
       <nav class="sb-nav">
         <div class="sb-section">
           <div class="sb-label">Service</div>
-          <button class="nav-item on" onclick="nav('pos')">
-            <span class="nav-icon">🍽</span><span>New Order</span>
-            <span class="nav-badge" id="cart-n">0</span>
-          </button>
-          <button class="nav-item" onclick="nav('tabs')">
-            <span class="nav-icon">📂</span><span>Open Tabs</span>
-            <span class="nav-badge" id="tabs-n">0</span>
-          </button>
-          <button class="nav-item" onclick="nav('tables')">
-            <span class="nav-icon">🪑</span><span>Table Map</span>
-          </button>
+          <button class="nav-item on" onclick="nav('pos')"><span class="nav-icon">🍽</span><span>New Order</span><span
+              class="nav-badge" id="cart-n">0</span></button>
+          <button class="nav-item" onclick="nav('tabs')"><span class="nav-icon">📂</span><span>Open Tabs</span><span
+              class="nav-badge" id="tabs-n">0</span></button>
+          <button class="nav-item" onclick="nav('tables')"><span class="nav-icon">🪑</span><span>Table
+              Map</span></button>
         </div>
         <div class="sb-section">
           <div class="sb-label">Manage</div>
-          <button class="nav-item" onclick="nav('items')">
-            <span class="nav-icon">📋</span><span>Menu Items</span>
-          </button>
-          <button class="nav-item" onclick="nav('cats')">
-            <span class="nav-icon">◈</span><span>Categories</span>
-          </button>
-          <button class="nav-item" onclick="nav('staff')">
-            <span class="nav-icon">👨‍🍳</span><span>Staff</span>
-          </button>
+          <button class="nav-item" onclick="nav('items')"><span class="nav-icon">📋</span><span>Menu
+              Items</span></button>
+          <button class="nav-item" onclick="nav('cats')"><span class="nav-icon">◈</span><span>Categories</span></button>
+          <button class="nav-item" onclick="nav('staff')"><span class="nav-icon">👨‍🍳</span><span>Staff</span></button>
         </div>
         <div class="sb-section">
           <div class="sb-label">Reports</div>
-          <button class="nav-item" onclick="nav('orders')">
-            <span class="nav-icon">📜</span><span>History</span>
-          </button>
-          <button class="nav-item" onclick="nav('dash')">
-            <span class="nav-icon">📊</span><span>Dashboard</span>
-          </button>
+          <button class="nav-item" onclick="nav('orders')"><span class="nav-icon">📜</span><span>History</span></button>
+          <button class="nav-item" onclick="nav('dash')"><span class="nav-icon">📊</span><span>Dashboard</span></button>
+        </div>
+        <div class="sb-section">
+          <div class="sb-label">System</div>
+          <button class="nav-item" onclick="nav('settings')"><span
+              class="nav-icon">⚙️</span><span>Settings</span></button>
         </div>
       </nav>
       <div class="sb-footer">
-        <!-- Theme selector -->
         <div class="theme-select-wrap">
           <div class="theme-select-label">Theme</div>
           <div class="theme-btns-row">
-            <button class="theme-btn" data-theme="dark" onclick="applyTheme('dark')" title="Dark">Dark</button>
-            <button class="theme-btn" data-theme="light" onclick="applyTheme('light')" title="Light">Light</button>
-            <button class="theme-btn" data-theme="rose" onclick="applyTheme('rose')" title="Rose">Rose</button>
+            <button class="theme-btn" data-theme="dark" onclick="applyTheme('dark')">Dark</button>
+            <button class="theme-btn" data-theme="light" onclick="applyTheme('light')">Light</button>
+            <button class="theme-btn" data-theme="rose" onclick="applyTheme('rose')">Rose</button>
           </div>
         </div>
-        <button class="logout-btn" onclick="doLogout()">
-          <span>🚪</span> Sign Out
-        </button>
+        <button class="logout-btn" onclick="doLogout()"><span>🚪</span> Sign Out</button>
       </div>
     </aside>
     <div class="sb-ov" id="sb-ov" onclick="closeSb()"></div>
@@ -143,10 +119,7 @@
           <div class="tabs-pill" id="tabs-pill" onclick="nav('tabs')" style="display:none">
             <span class="tp-count" id="tabs-pill-n">0</span> Open Tabs
           </div>
-          <div class="user-pill" id="user-pill">
-            <span class="user-pill-ico">👤</span>
-            <span id="user-pill-name">Admin</span>
-          </div>
+          <div class="user-pill"><span>👤</span><span id="user-pill-name">Admin</span></div>
         </div>
       </header>
 
@@ -165,11 +138,11 @@
             </div>
             <div>
               <div class="order-panel">
-                <!-- tabs strip -->
+                <!-- table tabs strip -->
                 <div class="tabs-strip">
-                  <div class="tabs-strip-label">Open Tabs</div>
+                  <div class="tabs-strip-label">Open Tabs — Click to Switch</div>
                   <div class="tabs-strip-chips" id="tabs-chips">
-                    <span style="font-size:.69rem;color:rgba(255,255,255,.25);font-style:italic">No tabs yet</span>
+                    <span style="font-size:.69rem;color:rgba(255,255,255,.25);font-style:italic">No open tabs</span>
                   </div>
                 </div>
                 <!-- order head -->
@@ -178,67 +151,54 @@
                     <div class="op-title">Current Order</div>
                     <div class="op-ref" id="op-ref">New tab</div>
                   </div>
-                  <div style="display:flex;gap:6px">
-                    <button class="btn btn-sm btn-kot" id="kot-btn" onclick="printKOT()"
-                      title="Print Kitchen Order Ticket">
-                      🖨 KOT
-                    </button>
+                  <div style="display:flex;gap:5px">
+                    <button class="btn btn-sm btn-kot" id="kot-btn" onclick="printKOT()">🖨 KOT</button>
                     <button class="btn btn-sm btn-ghost" onclick="clearOrder()">Clear</button>
                   </div>
                 </div>
                 <!-- meta -->
                 <div class="op-meta">
                   <div class="op-meta-row">
-                    <div class="fg">
-                      <label class="fl">Customer</label>
-                      <input class="fc" id="f-guest" placeholder="Name…" />
-                    </div>
-                    <div class="fg">
-                      <label class="fl">Table</label>
-                      <select class="fc" id="f-table" onchange="onTblChange()">
+                    <div class="fg"><label class="fl">Customer</label><input class="fc" id="f-guest" placeholder="Name…"
+                        oninput="autoSaveTab()" /></div>
+                    <div class="fg"><label class="fl">Table</label><select class="fc" id="f-table"
+                        onchange="onTblChange()">
                         <option value="">Takeaway</option>
-                      </select>
-                    </div>
+                      </select></div>
                   </div>
-                  <div class="fg">
-                    <label class="fl">Server</label>
-                    <select class="fc" id="f-server">
+                  <div class="fg"><label class="fl">Server</label><select class="fc" id="f-server"
+                      onchange="autoSaveTab()">
                       <option value="">Unassigned</option>
-                    </select>
-                  </div>
+                    </select></div>
                 </div>
                 <!-- KOT badge -->
                 <div class="kot-status-bar" id="kot-status-bar" style="display:none">
                   <span class="kot-pending-badge" id="kot-pending-n">0 new items</span>
-                  <span class="kot-status-txt">Ready to KOT</span>
+                  <span class="kot-status-txt">— Ready to KOT</span>
                 </div>
                 <!-- cart -->
                 <div class="op-cart" id="cart-area">
                   <div class="cart-empty-state">
-                    <div class="ces-icon">
-                      <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                    <div class="ces-icon"><svg width="36" height="36" viewBox="0 0 36 36" fill="none">
                         <circle cx="18" cy="18" r="17" stroke="currentColor" stroke-width="1.2"
                           stroke-dasharray="3 3" />
                         <path d="M12 24c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.2"
                           stroke-linecap="round" />
                         <circle cx="14.5" cy="15.5" r="1.5" fill="currentColor" />
                         <circle cx="21.5" cy="15.5" r="1.5" fill="currentColor" />
-                      </svg>
-                    </div>
+                      </svg></div>
                     <div class="ces-text">Tap a dish to begin</div>
                   </div>
                 </div>
                 <!-- totals -->
                 <div class="op-totals" id="op-totals">
-                  <div class="t-row"><span class="t-lbl">Subtotal</span><span class="t-val" id="t-sub">RS 0.00</span>
+                  <div class="t-row"><span class="t-lbl">Subtotal</span><span class="t-val" id="t-sub">0.00</span></div>
+                  <div class="t-row disc" id="t-disc-row" style="display:none"><span class="t-lbl">Discount</span><span
+                      class="t-val" id="t-disc">—</span></div>
+                  <div class="t-row" id="t-svc-row"><span class="t-lbl" id="t-svc-lbl">Service (0%)</span><span
+                      class="t-val" id="t-svc">0.00</span></div>
+                  <div class="t-row grand"><span class="t-lbl">Total</span><span class="t-val" id="t-total">0.00</span>
                   </div>
-                  <div class="t-row disc" id="t-disc-row" style="display:none">
-                    <span class="t-lbl">Discount</span><span class="t-val" id="t-disc">—</span>
-                  </div>
-                  <div class="t-row"><span class="t-lbl">Tax (0%)</span><span class="t-val" id="t-tax">RS 0.00</span>
-                  </div>
-                  <div class="t-row grand"><span class="t-lbl">Total</span><span class="t-val" id="t-total">RS
-                      0.00</span></div>
                 </div>
                 <!-- pay -->
                 <div class="op-pay">
@@ -249,10 +209,10 @@
                     <button class="pay-btn" data-pay="QR" onclick="selPay(this)">📱 QR</button>
                   </div>
                   <div class="disc-row-inputs">
-                    <input class="fc" type="number" id="f-disc" placeholder="Discount (RS)" min="0" step="0.01"
+                    <input class="fc" type="number" id="f-disc" placeholder="Discount" min="0" step="0.01"
                       oninput="recalc()" />
-                    <textarea class="fc" id="f-note" rows="2" placeholder="Notes…"
-                      style="resize:none;font-size:.78rem;"></textarea>
+                    <textarea class="fc" id="f-note" rows="2" placeholder="Notes…" style="resize:none;font-size:.78rem;"
+                      oninput="autoSaveTab()"></textarea>
                   </div>
                   <div class="action-row">
                     <button class="btn btn-ghost btn-block" style="flex:.8" onclick="saveTab()">💾 Save Tab</button>
@@ -271,7 +231,7 @@
             style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
             <div>
               <div style="font-family:var(--ff-display);font-size:1.1rem;color:var(--ink)">Open Tabs</div>
-              <div style="font-size:.7rem;color:var(--soft);margin-top:2px">All unconfirmed orders — one tab per table
+              <div style="font-size:.7rem;color:var(--soft);margin-top:2px">Each table has its own independent order
               </div>
             </div>
             <button class="btn btn-amber btn-sm" onclick="nav('pos')">+ New Order</button>
@@ -302,7 +262,7 @@
           <div class="tables-grid" id="tables-grid"></div>
         </section>
 
-        <!-- ═══ MASTER (items / cats / staff) ═══ -->
+        <!-- ═══ MASTER ═══ -->
         <section class="pg" id="pg-master">
           <div class="master-tab-bar">
             <button class="m-tab on" onclick="swMTab('items',this)">Menu Items</button>
@@ -314,11 +274,9 @@
               <div class="card-head">
                 <h3 class="card-title">Menu Items</h3>
                 <div style="display:flex;gap:7px;align-items:center">
-                  <div class="search-wrap" style="margin:0">
-                    <span class="search-icon">⌕</span>
-                    <input class="fc" style="width:175px;padding:7px 10px 7px 32px" id="q-items" placeholder="Search…"
-                      oninput="renderItemsTable()" />
-                  </div>
+                  <div class="search-wrap" style="margin:0"><span class="search-icon">⌕</span><input class="fc"
+                      style="width:175px;padding:7px 10px 7px 32px" id="q-items" placeholder="Search…"
+                      oninput="renderItemsTable()" /></div>
                   <button class="btn btn-amber btn-sm" onclick="openItemModal()">+ Add</button>
                 </div>
               </div>
@@ -329,6 +287,7 @@
                       <th>Image</th>
                       <th>Dish</th>
                       <th>Category</th>
+                      <th>Unit</th>
                       <th>Price</th>
                       <th>Status</th>
                       <th></th>
@@ -342,8 +301,8 @@
           <div class="m-panel" id="mp-cats">
             <div class="card">
               <div class="card-head">
-                <h3 class="card-title">Categories</h3>
-                <button class="btn btn-amber btn-sm" onclick="openCatModal()">+ Add</button>
+                <h3 class="card-title">Categories</h3><button class="btn btn-amber btn-sm" onclick="openCatModal()">+
+                  Add</button>
               </div>
               <div class="dt-scroll">
                 <table class="dt">
@@ -364,8 +323,8 @@
           <div class="m-panel" id="mp-staff">
             <div class="card">
               <div class="card-head">
-                <h3 class="card-title">Staff</h3>
-                <button class="btn btn-amber btn-sm" onclick="openStaffModal()">+ Add</button>
+                <h3 class="card-title">Staff</h3><button class="btn btn-amber btn-sm" onclick="openStaffModal()">+
+                  Add</button>
               </div>
               <div class="dt-scroll">
                 <table class="dt">
@@ -387,12 +346,30 @@
 
         <!-- ═══ ORDER HISTORY ═══ -->
         <section class="pg" id="pg-orders">
-          <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
-            <div class="search-wrap" style="margin:0;flex:1;max-width:280px">
-              <span class="search-icon">⌕</span>
-              <input class="fc" id="q-orders" placeholder="Search…" oninput="renderHistory()" />
+          <div class="history-filters card" style="padding:14px 16px;margin-bottom:14px">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:160px">
+                <span class="search-icon" style="position:static;transform:none;color:var(--soft)">⌕</span>
+                <input class="fc" id="q-orders" placeholder="Search guest / order #…" oninput="renderHistory()"
+                  style="margin:0" />
+              </div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <label class="fl" style="margin:0;white-space:nowrap">From</label>
+                <input class="fc" type="date" id="h-from" onchange="renderHistory()" style="width:140px" />
+              </div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <label class="fl" style="margin:0;white-space:nowrap">To</label>
+                <input class="fc" type="date" id="h-to" onchange="renderHistory()" style="width:140px" />
+              </div>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-ghost btn-sm" onclick="setDatePreset('today')">Today</button>
+                <button class="btn btn-ghost btn-sm" onclick="setDatePreset('week')">This Week</button>
+                <button class="btn btn-ghost btn-sm" onclick="setDatePreset('month')">This Month</button>
+                <button class="btn btn-ghost btn-sm" onclick="setDatePreset('all')">All</button>
+              </div>
+              <button class="btn btn-red btn-sm" onclick="clearHistory()">Clear All</button>
             </div>
-            <button class="btn btn-red btn-sm" onclick="clearHistory()">Clear All</button>
+            <div class="history-summary" id="history-summary"></div>
           </div>
           <div id="history-feed"></div>
         </section>
@@ -403,8 +380,7 @@
           <div class="dash-grid">
             <div class="card">
               <div class="card-head">
-                <h3 class="card-title">Today's Service</h3>
-                <span class="badge b-amber" id="dash-today-n">0</span>
+                <h3 class="card-title">Today's Service</h3><span class="badge b-amber" id="dash-today-n">0</span>
               </div>
               <div class="card-body" id="dash-today"></div>
             </div>
@@ -428,199 +404,346 @@
             </div>
           </div>
         </section>
+
+        <!-- ═══ SETTINGS ═══ -->
+        <section class="pg" id="pg-settings">
+          <div class="settings-grid">
+
+            <!-- Billing Settings -->
+            <div class="card">
+              <div class="card-head">
+                <h3 class="card-title">💰 Billing & Currency</h3>
+              </div>
+              <div class="card-body">
+                <div class="fg">
+                  <label class="fl">Currency Symbol</label>
+                  <input class="fc" id="s-currency" placeholder="e.g. RS, $, £, ₹" maxlength="6" />
+                  <div style="font-size:.67rem;color:var(--soft);margin-top:4px">Displayed before all prices</div>
+                </div>
+                <div class="fg">
+                  <label class="fl">Currency Name</label>
+                  <input class="fc" id="s-currency-name" placeholder="e.g. Pakistani Rupee, Dollar" />
+                </div>
+                <div class="fg">
+                  <label class="fl">Service Charge (%)</label>
+                  <input class="fc" type="number" id="s-service" placeholder="0" min="0" max="100" step="0.1" />
+                  <div style="font-size:.67rem;color:var(--soft);margin-top:4px">Applied to every order total (0 =
+                    disabled)</div>
+                </div>
+                <div class="fg">
+                  <label class="fl">Tax (%)</label>
+                  <input class="fc" type="number" id="s-tax" placeholder="0" min="0" max="100" step="0.1" />
+                  <div style="font-size:.67rem;color:var(--soft);margin-top:4px">Tax applied after service charge</div>
+                </div>
+                <div class="fg">
+                  <label class="fl">Discount Type</label>
+                  <select class="fc" id="s-disc-type">
+                    <option value="flat">Flat Amount</option>
+                    <option value="pct">Percentage (%)</option>
+                  </select>
+                </div>
+                <button class="btn btn-amber" onclick="saveSettings()">Save Billing Settings</button>
+              </div>
+            </div>
+
+            <!-- Restaurant Info -->
+            <div class="card">
+              <div class="card-head">
+                <h3 class="card-title">🏪 Restaurant Info</h3>
+              </div>
+              <div class="card-body">
+                <div class="fg"><label class="fl">Restaurant Name</label><input class="fc" id="s-name"
+                    placeholder="My Restaurant" /></div>
+                <div class="fg"><label class="fl">Address</label><textarea class="fc" id="s-address" rows="2"
+                    style="resize:none" placeholder="Street, City"></textarea></div>
+                <div class="fg"><label class="fl">Phone</label><input class="fc" id="s-phone"
+                    placeholder="+92 300 0000000" /></div>
+                <div class="fg"><label class="fl">Footer Message on Receipt</label><input class="fc" id="s-footer"
+                    placeholder="Thank you for dining with us!" /></div>
+                <button class="btn btn-amber" onclick="saveSettings()">Save Restaurant Info</button>
+              </div>
+            </div>
+
+            <!-- Units Management -->
+            <div class="card">
+              <div class="card-head">
+                <h3 class="card-title">📐 Units of Measure</h3>
+                <button class="btn btn-amber btn-sm" onclick="addUnit()">+ Add Unit</button>
+              </div>
+              <div class="card-body">
+                <div style="font-size:.75rem;color:var(--soft);margin-bottom:12px;line-height:1.6">
+                  Units marked as <span class="badge b-amber" style="font-size:.58rem">Weight/Volume</span> enable the
+                  price-qty adjustment feature in orders.
+                </div>
+                <div id="units-list"></div>
+              </div>
+            </div>
+
+            <!-- POS Preferences -->
+            <div class="card">
+              <div class="card-head">
+                <h3 class="card-title">⚙️ POS Preferences</h3>
+              </div>
+              <div class="card-body">
+                <div class="fg">
+                  <label class="fl">Default Payment</label>
+                  <select class="fc" id="s-def-pay">
+                    <option value="Cash">Cash</option>
+                    <option value="Card">Card</option>
+                    <option value="QR">QR Code</option>
+                  </select>
+                </div>
+                <div class="fg">
+                  <label class="fl">Auto-print KOT on Item Add</label>
+                  <select class="fc" id="s-auto-kot">
+                    <option value="no">No — Manual KOT Print</option>
+                    <option value="yes">Yes — Auto on Each Add</option>
+                  </select>
+                </div>
+                <div class="fg">
+                  <label class="fl">Receipt Footer Line</label>
+                  <input class="fc" id="s-rcpt-footer" placeholder="Thank you! Visit again." />
+                </div>
+                <button class="btn btn-amber" onclick="saveSettings()">Save Preferences</button>
+              </div>
+            </div>
+
+            <!-- Data Management -->
+            <div class="card">
+              <div class="card-head">
+                <h3 class="card-title">🗄️ Data Management</h3>
+              </div>
+              <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
+                <div style="font-size:.75rem;color:var(--soft);line-height:1.6;margin-bottom:4px">Export or reset system
+                  data. All data is stored locally in this browser.</div>
+                <button class="btn btn-outline" onclick="exportData()">📤 Export All Data (JSON)</button>
+                <button class="btn btn-outline" onclick="importDataClick()">📥 Import Data (JSON)</button>
+                <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)" />
+                <hr style="border:none;border-top:1px solid var(--border);margin:4px 0" />
+                <button class="btn btn-red" onclick="resetAllData()">⚠️ Reset All Data</button>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
       </main>
     </div>
 
-    <!-- ═══ MODALS ═══ -->
+    <!-- ═══════ MODALS ═══════ -->
+
+    <!-- Item Modal -->
     <div class="modal-bg" id="mo-item">
       <div class="modal-box">
         <div class="modal-head">
-          <h3 class="modal-title" id="mo-item-title">Add Dish</h3>
-          <button class="modal-close" onclick="closeMo('mo-item')">✕</button>
+          <h3 class="modal-title" id="mo-item-title">Add Dish</h3><button class="modal-close"
+            onclick="closeMo('mo-item')">✕</button>
         </div>
         <div class="modal-body">
           <input type="hidden" id="fi-id" />
-          <div class="fg">
-            <label class="fl">Dish Name *</label>
-            <input class="fc" id="fi-name" placeholder="e.g. Wagyu Ribeye" />
+          <div class="fg"><label class="fl">Dish Name *</label><input class="fc" id="fi-name"
+              placeholder="e.g. Chicken Karahi" />
             <div class="ferr" id="fi-name-e">Required</div>
           </div>
           <div class="fg2">
-            <div class="fg">
-              <label class="fl">Category *</label>
-              <select class="fc" id="fi-cat">
+            <div class="fg"><label class="fl">Category *</label><select class="fc" id="fi-cat">
                 <option value="">Select…</option>
               </select>
               <div class="ferr" id="fi-cat-e">Required</div>
             </div>
-            <div class="fg">
-              <label class="fl">Price (RS) *</label>
-              <input class="fc" type="number" id="fi-price" placeholder="0.00" min="0" step="0.01" />
-              <div class="ferr" id="fi-price-e">Required</div>
+            <div class="fg"><label class="fl">Unit *</label><select class="fc" id="fi-unit">
+                <option value="">Select unit…</option>
+              </select>
+              <div class="ferr" id="fi-unit-e">Required</div>
             </div>
           </div>
-          <div class="fg">
-            <label class="fl">Description</label>
-            <input class="fc" id="fi-desc" placeholder="Brief description…" />
+          <div class="fg"><label class="fl" id="fi-price-label">Price per Unit (RS) *</label><input class="fc"
+              type="number" id="fi-price" placeholder="0.00" min="0" step="0.01" />
+            <div class="ferr" id="fi-price-e">Required</div>
           </div>
-          <div class="fg">
-            <label class="fl">Status</label>
-            <select class="fc" id="fi-status">
+          <div class="fg"><label class="fl">Description</label><input class="fc" id="fi-desc"
+              placeholder="Brief description…" /></div>
+          <div class="fg"><label class="fl">Status</label><select class="fc" id="fi-status">
               <option value="on">Available</option>
               <option value="off">86'd / Unavailable</option>
-            </select>
-          </div>
-          <div class="fg">
-            <label class="fl">Dish Photo</label>
+            </select></div>
+          <div class="fg"><label class="fl">Dish Photo</label>
             <div id="item-img-wrap"></div>
           </div>
         </div>
-        <div class="modal-footer">
-          <button class="btn btn-ghost" onclick="closeMo('mo-item')">Cancel</button>
-          <button class="btn btn-amber" onclick="saveItem()">Save Dish</button>
-        </div>
+        <div class="modal-footer"><button class="btn btn-ghost" onclick="closeMo('mo-item')">Cancel</button><button
+            class="btn btn-amber" onclick="saveItem()">Save Dish</button></div>
       </div>
     </div>
 
+    <!-- Category Modal -->
     <div class="modal-bg" id="mo-cat">
       <div class="modal-box">
         <div class="modal-head">
-          <h3 class="modal-title" id="mo-cat-title">Add Category</h3>
-          <button class="modal-close" onclick="closeMo('mo-cat')">✕</button>
+          <h3 class="modal-title" id="mo-cat-title">Add Category</h3><button class="modal-close"
+            onclick="closeMo('mo-cat')">✕</button>
         </div>
         <div class="modal-body">
           <input type="hidden" id="fc-id" />
-          <div class="fg">
-            <label class="fl">Category Name *</label>
-            <input class="fc" id="fc-name" placeholder="e.g. Starters, Mains…" />
+          <div class="fg"><label class="fl">Name *</label><input class="fc" id="fc-name" placeholder="e.g. Starters" />
             <div class="ferr" id="fc-name-e">Required</div>
           </div>
-          <div class="fg">
-            <label class="fl">Colour Tag</label>
-            <select class="fc" id="fc-tag">
+          <div class="fg"><label class="fl">Colour Tag</label><select class="fc" id="fc-tag">
               <option value="amber">Amber</option>
               <option value="green">Green</option>
               <option value="blue">Blue</option>
               <option value="red">Red</option>
               <option value="purple">Purple</option>
-            </select>
-          </div>
-          <div class="fg">
-            <label class="fl">Category Photo</label>
+            </select></div>
+          <div class="fg"><label class="fl">Category Photo</label>
             <div id="cat-img-wrap"></div>
           </div>
         </div>
-        <div class="modal-footer">
-          <button class="btn btn-ghost" onclick="closeMo('mo-cat')">Cancel</button>
-          <button class="btn btn-amber" onclick="saveCat()">Save</button>
-        </div>
+        <div class="modal-footer"><button class="btn btn-ghost" onclick="closeMo('mo-cat')">Cancel</button><button
+            class="btn btn-amber" onclick="saveCat()">Save</button></div>
       </div>
     </div>
 
+    <!-- Staff Modal -->
     <div class="modal-bg" id="mo-staff">
       <div class="modal-box">
         <div class="modal-head">
-          <h3 class="modal-title" id="mo-staff-title">Add Staff</h3>
-          <button class="modal-close" onclick="closeMo('mo-staff')">✕</button>
+          <h3 class="modal-title" id="mo-staff-title">Add Staff</h3><button class="modal-close"
+            onclick="closeMo('mo-staff')">✕</button>
         </div>
         <div class="modal-body">
           <input type="hidden" id="fs-id" />
-          <div class="fg">
-            <label class="fl">Full Name *</label>
-            <input class="fc" id="fs-name" placeholder="e.g. Jean Dupont" />
+          <div class="fg"><label class="fl">Full Name *</label><input class="fc" id="fs-name"
+              placeholder="e.g. Ahmed Ali" />
             <div class="ferr" id="fs-name-e">Required</div>
           </div>
           <div class="fg2">
-            <div class="fg">
-              <label class="fl">Role</label>
-              <input class="fc" id="fs-role" placeholder="Cashier, Waiter…" />
-            </div>
-            <div class="fg">
-              <label class="fl">Phone</label>
-              <input class="fc" id="fs-phone" placeholder="+92 300 0000" />
+            <div class="fg"><label class="fl">Role</label><input class="fc" id="fs-role"
+                placeholder="Cashier, Waiter…" /></div>
+            <div class="fg"><label class="fl">Phone</label><input class="fc" id="fs-phone" placeholder="+92 300 0000" />
             </div>
           </div>
-          <div class="fg">
-            <label class="fl">Status</label>
-            <select class="fc" id="fs-status">
+          <div class="fg"><label class="fl">Status</label><select class="fc" id="fs-status">
               <option value="on">Active</option>
               <option value="off">Off Duty</option>
-            </select>
-          </div>
+            </select></div>
         </div>
-        <div class="modal-footer">
-          <button class="btn btn-ghost" onclick="closeMo('mo-staff')">Cancel</button>
-          <button class="btn btn-amber" onclick="saveStaff()">Save</button>
-        </div>
+        <div class="modal-footer"><button class="btn btn-ghost" onclick="closeMo('mo-staff')">Cancel</button><button
+            class="btn btn-amber" onclick="saveStaff()">Save</button></div>
       </div>
     </div>
 
+    <!-- Table Modal -->
     <div class="modal-bg" id="mo-tbl">
       <div class="modal-box">
         <div class="modal-head">
-          <h3 class="modal-title" id="mo-tbl-title">Add Table</h3>
-          <button class="modal-close" onclick="closeMo('mo-tbl')">✕</button>
+          <h3 class="modal-title" id="mo-tbl-title">Add Table</h3><button class="modal-close"
+            onclick="closeMo('mo-tbl')">✕</button>
         </div>
         <div class="modal-body">
           <input type="hidden" id="ft-id" />
-          <div class="fg">
-            <label class="fl">Table Name *</label>
-            <input class="fc" id="ft-name" placeholder="e.g. Table 4, Private Room…" />
+          <div class="fg"><label class="fl">Table Name *</label><input class="fc" id="ft-name"
+              placeholder="e.g. Table 4, VIP Room…" />
             <div class="ferr" id="ft-name-e">Required</div>
           </div>
           <div class="fg2">
-            <div class="fg">
-              <label class="fl">Seats</label>
-              <input class="fc" type="number" id="ft-seats" value="4" min="1" />
-            </div>
-            <div class="fg">
-              <label class="fl">Status</label>
-              <select class="fc" id="ft-status">
+            <div class="fg"><label class="fl">Seats</label><input class="fc" type="number" id="ft-seats" value="4"
+                min="1" /></div>
+            <div class="fg"><label class="fl">Status</label><select class="fc" id="ft-status">
                 <option value="avail">Available</option>
                 <option value="busy">Occupied</option>
                 <option value="rsrvd">Reserved</option>
                 <option value="clean">Cleaning</option>
-              </select>
-            </div>
+              </select></div>
           </div>
         </div>
-        <div class="modal-footer">
-          <button class="btn btn-ghost" onclick="closeMo('mo-tbl')">Cancel</button>
-          <button class="btn btn-amber" onclick="saveTable()">Save</button>
-        </div>
+        <div class="modal-footer"><button class="btn btn-ghost" onclick="closeMo('mo-tbl')">Cancel</button><button
+            class="btn btn-amber" onclick="saveTable()">Save</button></div>
       </div>
     </div>
 
+    <!-- Receipt Modal -->
     <div class="modal-bg" id="mo-rcpt">
       <div class="modal-box" style="max-width:365px">
         <div class="modal-head">
-          <h3 class="modal-title">Receipt</h3>
-          <button class="modal-close" onclick="closeMo('mo-rcpt')">✕</button>
+          <h3 class="modal-title">Receipt</h3><button class="modal-close" onclick="closeMo('mo-rcpt')">✕</button>
         </div>
         <div class="modal-body" style="padding:12px">
           <div id="rcpt-area"></div>
         </div>
-        <div class="modal-footer">
-          <button class="btn btn-ghost" onclick="closeMo('mo-rcpt')">Close</button>
-          <button class="btn btn-outline" onclick="printRcpt()">🖨 Print</button>
-        </div>
+        <div class="modal-footer"><button class="btn btn-ghost" onclick="closeMo('mo-rcpt')">Close</button><button
+            class="btn btn-outline" onclick="printRcpt()">🖨 Print</button></div>
       </div>
     </div>
 
-    <!-- KOT Preview Modal -->
+    <!-- KOT Modal -->
     <div class="modal-bg" id="mo-kot">
       <div class="modal-box" style="max-width:320px">
         <div class="modal-head">
-          <h3 class="modal-title">Kitchen Order Ticket</h3>
-          <button class="modal-close" onclick="closeMo('mo-kot')">✕</button>
+          <h3 class="modal-title">Kitchen Order Ticket</h3><button class="modal-close"
+            onclick="closeMo('mo-kot')">✕</button>
         </div>
         <div class="modal-body" style="padding:12px">
           <div id="kot-area"></div>
         </div>
-        <div class="modal-footer">
-          <button class="btn btn-ghost" onclick="closeMo('mo-kot')">Cancel</button>
-          <button class="btn btn-amber" onclick="doPrintKOT()">🖨 Print KOT</button>
+        <div class="modal-footer"><button class="btn btn-ghost" onclick="closeMo('mo-kot')">Cancel</button><button
+            class="btn btn-amber" onclick="doPrintKOT()">🖨 Print KOT</button></div>
+      </div>
+    </div>
+
+    <!-- Unit Qty/Price Adjust Modal -->
+    <div class="modal-bg" id="mo-unit-adj">
+      <div class="modal-box" style="max-width:380px">
+        <div class="modal-head">
+          <h3 class="modal-title" id="ua-title">Adjust Quantity / Price</h3><button class="modal-close"
+            onclick="closeMo('mo-unit-adj')">✕</button>
         </div>
+        <div class="modal-body">
+          <div id="ua-item-info"
+            style="background:var(--mist);border-radius:8px;padding:10px 13px;margin-bottom:14px;font-size:.8rem;color:var(--mid)">
+          </div>
+          <div class="fg">
+            <label class="fl" id="ua-qty-label">Quantity (kg)</label>
+            <input class="fc" type="number" id="ua-qty" min="0.001" step="0.001" oninput="uaQtyChanged()" />
+            <div style="font-size:.66rem;color:var(--soft);margin-top:3px">Change quantity → price auto-updates</div>
+          </div>
+          <div style="text-align:center;font-size:1.2rem;color:var(--amber);margin:8px 0">⇅</div>
+          <div class="fg">
+            <label class="fl">Amount to Charge</label>
+            <input class="fc" type="number" id="ua-price" min="0" step="1" oninput="uaPriceChanged()" />
+            <div style="font-size:.66rem;color:var(--soft);margin-top:3px">Change amount → quantity auto-updates</div>
+          </div>
+          <div class="ua-rate-info" id="ua-rate-info"
+            style="font-size:.72rem;color:var(--soft);margin-top:6px;padding:7px 10px;background:var(--mist);border-radius:6px">
+          </div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-ghost" onclick="closeMo('mo-unit-adj')">Cancel</button><button
+            class="btn btn-amber" onclick="applyUnitAdj()">Apply</button></div>
+      </div>
+    </div>
+
+    <!-- Unit Add/Edit Modal -->
+    <div class="modal-bg" id="mo-unit">
+      <div class="modal-box" style="max-width:400px">
+        <div class="modal-head">
+          <h3 class="modal-title" id="mo-unit-title">Add Unit</h3><button class="modal-close"
+            onclick="closeMo('mo-unit')">✕</button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="fu-id" />
+          <div class="fg"><label class="fl">Unit Name *</label><input class="fc" id="fu-name"
+              placeholder="e.g. kg, Piece, Plate, Litre" />
+            <div class="ferr" id="fu-name-e">Required</div>
+          </div>
+          <div class="fg"><label class="fl">Abbreviation</label><input class="fc" id="fu-abbr"
+              placeholder="e.g. kg, pcs, plt, L" maxlength="8" /></div>
+          <div class="fg"><label class="fl">Type</label><select class="fc" id="fu-type">
+              <option value="fixed">Fixed (Piece/Plate/Bowl) — no qty adjustment</option>
+              <option value="variable">Weight/Volume (kg/g/L) — enables qty-price adjustment</option>
+            </select></div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-ghost" onclick="closeMo('mo-unit')">Cancel</button><button
+            class="btn btn-amber" onclick="saveUnit()">Save Unit</button></div>
       </div>
     </div>
 
@@ -629,9 +752,7 @@
 
   </div><!-- /app-wrap -->
 
-  <!-- Main JS -->
   <script src="./js/main.js"></script>
-
 </body>
 
 </html>

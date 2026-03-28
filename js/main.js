@@ -1,68 +1,88 @@
-/* ═══════════════════════════════════════════════════════
-   THE SALE POINT — main.js
-   Features:
-   - Login / Logout with session persistence
-   - 3 Themes (Dark, Light, Rose)
-   - One tab per table (multiple tables can have their own tabs)
-   - KOT (Kitchen Order Ticket) — print pending new items
-   - SweetAlert2 replaces all alert/confirm dialogs
-═══════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   THE SALE POINT — main.js  v3
+   ✔ Multiple independent tabs — one per table, unlimited takeaway
+   ✔ Settings page: currency, service charge, tax, restaurant info
+   ✔ Units of measure with variable (kg/L) vs fixed (piece/plate)
+   ✔ Qty↔Price mutual adjustment for variable-unit items
+   ✔ Date filters on history (Today / Week / Month / Range)
+   ✔ SweetAlert2 everywhere — no native confirm/alert
+   ✔ KOT system with pending tracking
+   ✔ 3 themes: Dark · Light · Rose
+═══════════════════════════════════════════════════════════════ */
 
 /* ── Storage ── */
 const LS = {
   get: (k) => {
     try {
-      return JSON.parse(localStorage.getItem("mpos3_" + k));
+      return JSON.parse(localStorage.getItem("sp_" + k));
     } catch {
       return null;
     }
   },
   set: (k, v) => {
     try {
-      localStorage.setItem("mpos3_" + k, JSON.stringify(v));
+      localStorage.setItem("sp_" + k, JSON.stringify(v));
     } catch {}
   },
 };
 
-/* ── Demo Users (extend as needed) ── */
+/* ── Users ── */
 const USERS = [
-  { username: "admin", password: "admin123", role: "Admin", display: "Admin" },
+  { username: "admin", password: "admin123", display: "Admin", role: "Admin" },
   {
     username: "cashier",
     password: "cash123",
-    role: "Cashier",
     display: "Cashier",
+    role: "Cashier",
   },
   {
     username: "waiter",
     password: "wait123",
-    role: "Waiter",
     display: "Waiter",
+    role: "Waiter",
   },
 ];
-
 let CURRENT_USER = null;
 
-/* ── State ── */
-let DB = { cats: [], items: [], staff: [], tables: [], orders: [], tabs: [] };
-let CART = [];
-let TAB_ID = null;
+/* ── DB State ── */
+let DB = {
+  cats: [],
+  items: [],
+  staff: [],
+  tables: [],
+  orders: [],
+  tabs: [],
+  units: [],
+};
+
+/* ── MULTI-TAB SYSTEM ──
+   TAB_ID = currently viewed tab id.
+   Each table can have AT MOST ONE tab (enforced on table select).
+   Takeaway orders can have unlimited tabs (no table assigned).
+   Tabs are fully independent — each has its own CART stored inside the tab object.
+   We NEVER use a global CART array. Always read/write from the active tab.
+──────────────────────────────────────────── */
+let TAB_ID = null; // ID of the currently displayed tab
 let ACTIVE_CAT = "all";
 let PAY = "Cash";
 let ORDER_NUM = 1;
 let KOT_NUM = 1;
-const TAX = 0.0;
+
+/* KOT pending: set of cart-item IDs not yet KOT-printed in the CURRENT tab view */
+let KOT_PENDING = new Set();
+
+/* Unit adjustment state */
+let UA_CART_ID = null; // cart item id being adjusted
+let UA_BASE_PRICE = 0; // price per unit from item definition
+
 const uid = () =>
   Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
-/* ── Temp image state ── */
+/* ── Temp image refs ── */
 let _itemImg = null;
 let _catImg = null;
 
-/* ── Pending KOT items (cart item ids not yet KOT-printed) ── */
-let KOT_PENDING = new Set(); // set of cart item IDs added since last KOT
-
-/* ── Category color helpers ── */
+/* ── Constants ── */
 const TAG_CLASS = {
   amber: "b-amber",
   green: "b-green",
@@ -80,121 +100,50 @@ const TAG_COLOR = {
   gray: "#9BA5C0",
 };
 
-/* ── SVG placeholders ── */
 const SVGS = {
-  Starters: `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="14" r="7" stroke="#94A3B8" stroke-width="1.4"/><path d="M9 32c0-6 5-10 11-10s11 4 11 10" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/><path d="M17 10h6M20 7v6" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/></svg>`,
-  Mains: `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="22" r="12" stroke="#94A3B8" stroke-width="1.4"/><path d="M8 22h24M20 10v4M13 15l2.5 2.5M27 15l-2.5 2.5" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/></svg>`,
-  Grill: `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="8" y="18" width="24" height="12" rx="3" stroke="#94A3B8" stroke-width="1.4"/><path d="M8 18h24M12 30v5M28 30v5M14 11c0-2 2-3 2-5M20 11c0-2 2-3 2-5M26 11c0-2 2-3 2-5" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/></svg>`,
-  Pasta: `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><path d="M10 26c0-5.5 4.5-10 10-10s10 4.5 10 10" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/><path d="M6 26h28" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/><path d="M12 26c0 4.4 3.6 7 8 7s8-2.6 8-7" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/><path d="M17 16c0-3 2-5 3-7M21 16c0-3 2-5 3-7" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/></svg>`,
-  Desserts: `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><path d="M20 6c-5.5 0-10 4.5-10 10 0 4.6 3 8.5 7.2 9.7L15 32h10l-2.2-6.3C26.9 24.5 30 20.6 30 16c0-5.5-4.5-10-10-10z" stroke="#94A3B8" stroke-width="1.4"/><path d="M17 32h6" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/><circle cx="20" cy="16" r="2.5" stroke="#94A3B8" stroke-width="1.4"/></svg>`,
-  Beverages: `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><path d="M14 10l3.5 20h5l3.5-20H14z" stroke="#94A3B8" stroke-width="1.4" stroke-linejoin="round"/><path d="M12 10h16M17 18h6" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/><path d="M19 5c0 0 0 3-3 3" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/></svg>`,
-  default: `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="13" stroke="#94A3B8" stroke-width="1.4" stroke-dasharray="3 3"/><circle cx="20" cy="20" r="4" stroke="#94A3B8" stroke-width="1.4"/></svg>`,
+  Starters: `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="14" r="7" stroke="#94A3B8" stroke-width="1.4"/><path d="M9 32c0-6 5-10 11-10s11 4 11 10" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+  Mains: `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="22" r="12" stroke="#94A3B8" stroke-width="1.4"/><path d="M8 22h24M20 10v4" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+  Grill: `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="8" y="18" width="24" height="12" rx="3" stroke="#94A3B8" stroke-width="1.4"/><path d="M8 18h24M12 30v5M28 30v5" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+  Pasta: `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><path d="M10 26c0-5.5 4.5-10 10-10s10 4.5 10 10" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/><path d="M6 26h28" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+  Desserts: `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><path d="M20 6c-5.5 0-10 4.5-10 10 0 4.6 3 8.5 7.2 9.7L15 32h10l-2.2-6.3C26.9 24.5 30 20.6 30 16c0-5.5-4.5-10-10-10z" stroke="#94A3B8" stroke-width="1.4"/></svg>`,
+  Beverages: `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><path d="M14 10l3.5 20h5l3.5-20H14z" stroke="#94A3B8" stroke-width="1.4" stroke-linejoin="round"/><path d="M12 10h16" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+  default: `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="13" stroke="#94A3B8" stroke-width="1.4" stroke-dasharray="3 3"/></svg>`,
 };
-function getSVG(catName) {
-  return SVGS[catName] || SVGS.default;
-}
+const getSVG = (n) => SVGS[n] || SVGS.default;
 
-/* ═══════════════════════════
-   LOGIN / LOGOUT
-═══════════════════════════ */
-function togglePw() {
-  const inp = document.getElementById("l-pass");
-  const tog = document.getElementById("pw-tog");
-  if (inp.type === "password") {
-    inp.type = "text";
-    tog.textContent = "🙈";
-  } else {
-    inp.type = "password";
-    tog.textContent = "👁";
-  }
-}
+/* ── Settings ── */
+let CFG = {
+  currency: "RS",
+  currencyName: "Pakistani Rupee",
+  serviceCharge: 0,
+  tax: 0,
+  discType: "flat",
+  restName: "The Sale Point",
+  restAddress: "",
+  restPhone: "",
+  footer: "Thank you for dining with us!",
+  defPay: "Cash",
+  autoKot: "no",
+  rcptFooter: "Please visit again!",
+};
 
-function doLogin(e) {
-  e.preventDefault();
-  const user = document.getElementById("l-user").value.trim();
-  const pass = document.getElementById("l-pass").value;
-  const errEl = document.getElementById("login-error");
-  const btn = document.getElementById("login-btn");
-
-  // Clear errors
-  document.getElementById("l-user-e").classList.remove("show");
-  document.getElementById("l-pass-e").classList.remove("show");
-  document.getElementById("l-user").classList.remove("invalid");
-  document.getElementById("l-pass").classList.remove("invalid");
-  errEl.style.display = "none";
-
-  let ok = true;
-  if (!user) {
-    document.getElementById("l-user").classList.add("invalid");
-    document.getElementById("l-user-e").classList.add("show");
-    ok = false;
-  }
-  if (!pass) {
-    document.getElementById("l-pass").classList.add("invalid");
-    document.getElementById("l-pass-e").classList.add("show");
-    ok = false;
-  }
-  if (!ok) return;
-
-  const found = USERS.find((u) => u.username === user && u.password === pass);
-  if (!found) {
-    errEl.style.display = "block";
-    document.getElementById("l-pass").classList.add("invalid");
-    return;
-  }
-
-  // Success — animate button
-  btn.textContent = "✓ Welcome!";
-  btn.style.opacity = ".85";
-  CURRENT_USER = found;
-  LS.set("session", {
-    username: found.username,
-    role: found.role,
-    display: found.display,
-  });
-
-  setTimeout(() => {
-    document.getElementById("login-screen").style.display = "none";
-    document.getElementById("app-wrap").style.display = "flex";
-    document.getElementById("user-pill-name").textContent = found.display;
-    initApp();
-  }, 500);
-}
-
-function doLogout() {
-  Swal.fire({
-    title: "Sign Out?",
-    text: "You'll be returned to the login screen.",
-    icon: "question",
-    showCancelButton: true,
-    confirmButtonText: "Sign Out",
-    cancelButtonText: "Stay",
-    reverseButtons: true,
-  }).then((r) => {
-    if (r.isConfirmed) {
-      LS.set("session", null);
-      CURRENT_USER = null;
-      document.getElementById("app-wrap").style.display = "none";
-      document.getElementById("login-screen").style.display = "flex";
-      document.getElementById("l-user").value = "";
-      document.getElementById("l-pass").value = "";
-      document.getElementById("login-btn").textContent = "Sign In";
-      document.getElementById("login-btn").style.opacity = "";
-    }
-  });
-}
-
-function setLoginTheme(theme, btn) {
-  document
-    .querySelectorAll(".ltheme-btn")
-    .forEach((b) => b.classList.remove("on"));
-  btn.classList.add("on");
-  applyTheme(theme);
-}
-
-/* ═══════════════════════════
+/* ═══════════════════════════════════
    SEED DATA
-═══════════════════════════ */
+═══════════════════════════════════ */
+function seedUnits() {
+  return [
+    { id: uid(), name: "Piece", abbr: "pcs", type: "fixed" },
+    { id: uid(), name: "Plate", abbr: "plt", type: "fixed" },
+    { id: uid(), name: "Bowl", abbr: "bwl", type: "fixed" },
+    { id: uid(), name: "Glass", abbr: "gls", type: "fixed" },
+    { id: uid(), name: "Cup", abbr: "cup", type: "fixed" },
+    { id: uid(), name: "kg", abbr: "kg", type: "variable" },
+    { id: uid(), name: "gram", abbr: "g", type: "variable" },
+    { id: uid(), name: "Litre", abbr: "L", type: "variable" },
+    { id: uid(), name: "ml", abbr: "ml", type: "variable" },
+    { id: uid(), name: "Portion", abbr: "por", type: "fixed" },
+  ];
+}
 function seedCats() {
   return [
     { id: uid(), name: "Starters", tag: "green", img: null },
@@ -205,13 +154,16 @@ function seedCats() {
     { id: uid(), name: "Beverages", tag: "gray", img: null },
   ];
 }
-function seedItems(cats) {
+function seedItems(cats, units) {
   const gc = (n) => (cats.find((c) => c.name === n) || cats[0]).id;
+  const gu = (n) =>
+    (units.find((u) => u.name === n || u.abbr === n) || units[0]).id;
   return [
     {
       id: uid(),
       name: "Burrata Caprese",
       catId: gc("Starters"),
+      unitId: gu("Plate"),
       price: 650,
       status: "on",
       desc: "Heirloom tomato, aged balsamic",
@@ -221,6 +173,7 @@ function seedItems(cats) {
       id: uid(),
       name: "Scallop Ceviche",
       catId: gc("Starters"),
+      unitId: gu("Plate"),
       price: 850,
       status: "on",
       desc: "Lime & coconut leche de tigre",
@@ -228,17 +181,9 @@ function seedItems(cats) {
     },
     {
       id: uid(),
-      name: "Truffle Arancini",
-      catId: gc("Starters"),
-      price: 750,
-      status: "on",
-      desc: "Black truffle, parmesan foam",
-      img: null,
-    },
-    {
-      id: uid(),
       name: "Chicken Karahi",
       catId: gc("Mains"),
+      unitId: gu("kg"),
       price: 1200,
       status: "on",
       desc: "Slow-cooked, desi spices",
@@ -248,15 +193,17 @@ function seedItems(cats) {
       id: uid(),
       name: "Mutton Nihari",
       catId: gc("Mains"),
+      unitId: gu("kg"),
       price: 1400,
       status: "on",
-      desc: "Slow cooked overnight, garnished",
+      desc: "Slow cooked overnight",
       img: null,
     },
     {
       id: uid(),
       name: "Prawn Biryani",
       catId: gc("Mains"),
+      unitId: gu("Plate"),
       price: 1600,
       status: "on",
       desc: "Jumbo prawns, saffron rice",
@@ -266,7 +213,8 @@ function seedItems(cats) {
       id: uid(),
       name: "Seekh Kabab",
       catId: gc("Grill"),
-      price: 950,
+      unitId: gu("Piece"),
+      price: 350,
       status: "on",
       desc: "Minced beef, charcoal grilled",
       img: null,
@@ -275,6 +223,7 @@ function seedItems(cats) {
       id: uid(),
       name: "Beef Boti",
       catId: gc("Grill"),
+      unitId: gu("kg"),
       price: 1100,
       status: "on",
       desc: "Marinated tender beef cubes",
@@ -284,6 +233,7 @@ function seedItems(cats) {
       id: uid(),
       name: "Mix Grill Platter",
       catId: gc("Grill"),
+      unitId: gu("Plate"),
       price: 2200,
       status: "on",
       desc: "4-skewer platter with raita",
@@ -293,6 +243,7 @@ function seedItems(cats) {
       id: uid(),
       name: "Peshwari Pasta",
       catId: gc("Pasta"),
+      unitId: gu("Plate"),
       price: 850,
       status: "on",
       desc: "Cream sauce, desi twist",
@@ -300,18 +251,10 @@ function seedItems(cats) {
     },
     {
       id: uid(),
-      name: "Tagliatelle Tartufo",
-      catId: gc("Pasta"),
-      price: 1100,
-      status: "on",
-      desc: "Black truffle, egg yolk",
-      img: null,
-    },
-    {
-      id: uid(),
       name: "Gulab Jamun",
       catId: gc("Desserts"),
-      price: 350,
+      unitId: gu("Piece"),
+      price: 120,
       status: "on",
       desc: "Warm syrup, rose cardamom",
       img: null,
@@ -320,6 +263,7 @@ function seedItems(cats) {
       id: uid(),
       name: "Chocolate Fondant",
       catId: gc("Desserts"),
+      unitId: gu("Plate"),
       price: 550,
       status: "on",
       desc: "Valrhona 70%, salted caramel",
@@ -327,26 +271,9 @@ function seedItems(cats) {
     },
     {
       id: uid(),
-      name: "Rooh Afza Shake",
-      catId: gc("Beverages"),
-      price: 280,
-      status: "on",
-      desc: "Chilled, creamy",
-      img: null,
-    },
-    {
-      id: uid(),
-      name: "Green Tea",
-      catId: gc("Beverages"),
-      price: 150,
-      status: "on",
-      desc: "Premium green leaves",
-      img: null,
-    },
-    {
-      id: uid(),
       name: "Doodh Patti",
       catId: gc("Beverages"),
+      unitId: gu("Cup"),
       price: 120,
       status: "on",
       desc: "Strong Pakistani chai",
@@ -356,9 +283,30 @@ function seedItems(cats) {
       id: uid(),
       name: "Fresh Lemonade",
       catId: gc("Beverages"),
+      unitId: gu("Glass"),
       price: 220,
       status: "on",
       desc: "Mint, lemon, chilled soda",
+      img: null,
+    },
+    {
+      id: uid(),
+      name: "Rooh Afza Shake",
+      catId: gc("Beverages"),
+      unitId: gu("Glass"),
+      price: 280,
+      status: "on",
+      desc: "Chilled, creamy",
+      img: null,
+    },
+    {
+      id: uid(),
+      name: "Mutton Seekh (250g)",
+      catId: gc("Grill"),
+      unitId: gu("gram"),
+      price: 3,
+      status: "on",
+      desc: "Price per gram",
       img: null,
     },
   ];
@@ -399,9 +347,9 @@ function seedTables() {
   return [
     { id: uid(), name: "Table 1", seats: 2, status: "avail" },
     { id: uid(), name: "Table 2", seats: 4, status: "avail" },
-    { id: uid(), name: "Table 3", seats: 4, status: "busy" },
+    { id: uid(), name: "Table 3", seats: 4, status: "avail" },
     { id: uid(), name: "Table 4", seats: 6, status: "avail" },
-    { id: uid(), name: "Table 5", seats: 2, status: "rsrvd" },
+    { id: uid(), name: "Table 5", seats: 2, status: "avail" },
     { id: uid(), name: "Table 6", seats: 8, status: "avail" },
     { id: uid(), name: "Bar 1", seats: 2, status: "avail" },
     { id: uid(), name: "Bar 2", seats: 2, status: "avail" },
@@ -409,19 +357,27 @@ function seedTables() {
   ];
 }
 
+/* ═══════════════════════════════════
+   LOAD / SAVE DB
+═══════════════════════════════════ */
 function loadDB() {
+  DB.units = LS.get("units") || null;
   DB.cats = LS.get("cats") || null;
   DB.items = LS.get("items") || null;
   DB.staff = LS.get("staff") || null;
   DB.tables = LS.get("tables") || null;
   DB.orders = LS.get("orders") || [];
   DB.tabs = LS.get("tabs") || [];
+  if (!DB.units) {
+    DB.units = seedUnits();
+    LS.set("units", DB.units);
+  }
   if (!DB.cats) {
     DB.cats = seedCats();
     LS.set("cats", DB.cats);
   }
   if (!DB.items) {
-    DB.items = seedItems(DB.cats);
+    DB.items = seedItems(DB.cats, DB.units);
     LS.set("items", DB.items);
   }
   if (!DB.staff) {
@@ -436,25 +392,111 @@ function loadDB() {
     ? Math.max(...DB.orders.map((o) => o.num || 1)) + 1
     : 1;
   KOT_NUM = LS.get("kot_num") || 1;
+
+  const saved = LS.get("cfg");
+  if (saved) Object.assign(CFG, saved);
 }
 const save = (k) => LS.set(k, DB[k]);
+const saveCFG = () => LS.set("cfg", CFG);
+const cur = () => CFG.currency || "RS";
 
-/* ═══════════════════════════
+/* ═══════════════════════════════════
+   LOGIN / LOGOUT
+═══════════════════════════════════ */
+function togglePw() {
+  const i = document.getElementById("l-pass"),
+    b = document.getElementById("pw-tog");
+  i.type = i.type === "password" ? "text" : "password";
+  b.textContent = i.type === "password" ? "👁" : "🙈";
+}
+function doLogin(e) {
+  e.preventDefault();
+  const user = document.getElementById("l-user").value.trim();
+  const pass = document.getElementById("l-pass").value;
+  let ok = true;
+  ["l-user", "l-pass"].forEach((id) => {
+    document.getElementById(id).classList.remove("invalid");
+  });
+  ["l-user-e", "l-pass-e"].forEach((id) =>
+    document.getElementById(id).classList.remove("show"),
+  );
+  document.getElementById("login-error").style.display = "none";
+  if (!user) {
+    document.getElementById("l-user").classList.add("invalid");
+    document.getElementById("l-user-e").classList.add("show");
+    ok = false;
+  }
+  if (!pass) {
+    document.getElementById("l-pass").classList.add("invalid");
+    document.getElementById("l-pass-e").classList.add("show");
+    ok = false;
+  }
+  if (!ok) return;
+  const found = USERS.find((u) => u.username === user && u.password === pass);
+  if (!found) {
+    document.getElementById("login-error").style.display = "block";
+    document.getElementById("l-pass").classList.add("invalid");
+    return;
+  }
+  CURRENT_USER = found;
+  LS.set("session", {
+    username: found.username,
+    display: found.display,
+    role: found.role,
+  });
+  const btn = document.getElementById("login-btn");
+  btn.textContent = "✓ Welcome!";
+  btn.style.opacity = ".8";
+  setTimeout(() => {
+    document.getElementById("login-screen").style.display = "none";
+    document.getElementById("app-wrap").style.display = "flex";
+    document.getElementById("user-pill-name").textContent = found.display;
+    initApp();
+  }, 450);
+}
+function doLogout() {
+  Swal.fire({
+    title: "Sign Out?",
+    text: "You will be returned to the login screen.",
+    icon: "question",
+    showCancelButton: true,
+    confirmButtonText: "Sign Out",
+    cancelButtonText: "Stay",
+    reverseButtons: true,
+  }).then((r) => {
+    if (!r.isConfirmed) return;
+    LS.set("session", null);
+    CURRENT_USER = null;
+    document.getElementById("app-wrap").style.display = "none";
+    document.getElementById("login-screen").style.display = "flex";
+    document.getElementById("l-user").value = "";
+    document.getElementById("l-pass").value = "";
+    document.getElementById("login-btn").textContent = "Sign In";
+    document.getElementById("login-btn").style.opacity = "";
+  });
+}
+function setLoginTheme(t, btn) {
+  document
+    .querySelectorAll(".ltheme-btn")
+    .forEach((b) => b.classList.remove("on"));
+  btn.classList.add("on");
+  applyTheme(t);
+}
+
+/* ═══════════════════════════════════
    THEME
-═══════════════════════════ */
+═══════════════════════════════════ */
 function initTheme() {
   applyTheme(LS.get("theme") || "dark");
 }
 function applyTheme(t) {
   document.documentElement.setAttribute("data-theme", t);
   LS.set("theme", t);
-  // Highlight active theme btn in sidebar
   document
     .querySelectorAll(".theme-btn")
     .forEach((b) =>
       b.classList.toggle("on", b.getAttribute("data-theme") === t),
     );
-  // Highlight login theme btns
   document
     .querySelectorAll(".ltheme-btn")
     .forEach((b) =>
@@ -462,9 +504,9 @@ function applyTheme(t) {
     );
 }
 
-/* ═══════════════════════════
-   TOAST
-═══════════════════════════ */
+/* ═══════════════════════════════════
+   TOAST & SWAL
+═══════════════════════════════════ */
 function toast(msg, type = "ok") {
   const icons = { ok: "✓", err: "✗", amber: "✦", info: "ℹ" };
   const el = document.createElement("div");
@@ -480,12 +522,8 @@ function toast(msg, type = "ok") {
     setTimeout(() => el.remove(), 350);
   }, 3200);
 }
-
-/* ═══════════════════════════
-   SWAL HELPERS
-═══════════════════════════ */
-function swalConfirm(title, text, confirmTxt = "Yes", icon = "warning") {
-  return Swal.fire({
+const swalConfirm = (title, text, confirmTxt = "Yes", icon = "warning") =>
+  Swal.fire({
     title,
     text,
     icon,
@@ -494,11 +532,10 @@ function swalConfirm(title, text, confirmTxt = "Yes", icon = "warning") {
     cancelButtonText: "Cancel",
     reverseButtons: true,
   }).then((r) => r.isConfirmed);
-}
 
-/* ═══════════════════════════
+/* ═══════════════════════════════════
    MODAL
-═══════════════════════════ */
+═══════════════════════════════════ */
 function openMo(id) {
   document.getElementById(id).classList.add("open");
 }
@@ -531,16 +568,17 @@ function fErr(fi, ei) {
   if (e) e.classList.add("show");
 }
 
-/* ═══════════════════════════
+/* ═══════════════════════════════════
    NAVIGATION
-═══════════════════════════ */
+═══════════════════════════════════ */
 const PAGE_INFO = {
   pos: ["New Order", "Select dishes and build the order"],
-  tabs: ["Open Tabs", "All unconfirmed orders — one per table"],
+  tabs: ["Open Tabs", "Each table has its own independent order"],
   tables: ["Table Map", "Manage seating and availability"],
   master: ["Manage", "Menu items, categories & staff"],
   orders: ["Order History", "All completed transactions"],
   dash: ["Dashboard", "Sales performance & analytics"],
+  settings: ["Settings", "Billing, currency, units & preferences"],
 };
 function nav(page) {
   const mapped = ["items", "cats", "staff"].includes(page) ? "master" : page;
@@ -569,20 +607,20 @@ function nav(page) {
     document
       .querySelectorAll(".m-tab")
       .forEach((b) => b.classList.remove("on"));
-    const pm = { items: "items", cats: "cats", staff: "staff" };
-    document.getElementById("mp-" + pm[page]).classList.add("on");
+    document.getElementById("mp-" + page).classList.add("on");
     document
       .querySelectorAll(".m-tab")
       [["items", "cats", "staff"].indexOf(page)].classList.add("on");
   } else if (page === "orders") renderHistory();
   else if (page === "dash") renderDash();
+  else if (page === "settings") renderSettings();
 }
-function swMTab(panel, btn) {
+function swMTab(p, btn) {
   document
     .querySelectorAll(".m-panel")
-    .forEach((p) => p.classList.remove("on"));
-  document.querySelectorAll(".m-tab").forEach((b) => b.classList.remove("on"));
-  document.getElementById("mp-" + panel).classList.add("on");
+    .forEach((x) => x.classList.remove("on"));
+  document.querySelectorAll(".m-tab").forEach((x) => x.classList.remove("on"));
+  document.getElementById("mp-" + p).classList.add("on");
   btn.classList.add("on");
   renderMaster();
 }
@@ -595,16 +633,214 @@ function closeSb() {
   document.getElementById("sb-ov").classList.remove("open");
 }
 
-/* ═══════════════════════════
-   IMAGE UPLOAD WIDGET
-═══════════════════════════ */
-function buildImgWidget(containerId, currentSrc, onLoadCb) {
+/* ═══════════════════════════════════
+   SETTINGS
+═══════════════════════════════════ */
+function renderSettings() {
+  document.getElementById("s-currency").value = CFG.currency;
+  document.getElementById("s-currency-name").value = CFG.currencyName;
+  document.getElementById("s-service").value = CFG.serviceCharge;
+  document.getElementById("s-tax").value = CFG.tax;
+  document.getElementById("s-disc-type").value = CFG.discType;
+  document.getElementById("s-name").value = CFG.restName;
+  document.getElementById("s-address").value = CFG.restAddress;
+  document.getElementById("s-phone").value = CFG.restPhone;
+  document.getElementById("s-footer").value = CFG.footer;
+  document.getElementById("s-def-pay").value = CFG.defPay;
+  document.getElementById("s-auto-kot").value = CFG.autoKot;
+  document.getElementById("s-rcpt-footer").value = CFG.rcptFooter;
+  renderUnitsList();
+}
+function saveSettings() {
+  CFG.currency = document.getElementById("s-currency").value.trim() || "RS";
+  CFG.currencyName = document.getElementById("s-currency-name").value.trim();
+  CFG.serviceCharge =
+    parseFloat(document.getElementById("s-service").value) || 0;
+  CFG.tax = parseFloat(document.getElementById("s-tax").value) || 0;
+  CFG.discType = document.getElementById("s-disc-type").value;
+  CFG.restName =
+    document.getElementById("s-name").value.trim() || "The Sale Point";
+  CFG.restAddress = document.getElementById("s-address").value.trim();
+  CFG.restPhone = document.getElementById("s-phone").value.trim();
+  CFG.footer = document.getElementById("s-footer").value.trim();
+  CFG.defPay = document.getElementById("s-def-pay").value;
+  CFG.autoKot = document.getElementById("s-auto-kot").value;
+  CFG.rcptFooter = document.getElementById("s-rcpt-footer").value.trim();
+  saveCFG();
+  toast("Settings saved", "ok");
+}
+
+/* ═══════════════════════════════════
+   UNITS MANAGEMENT
+═══════════════════════════════════ */
+function renderUnitsList() {
+  const el = document.getElementById("units-list");
+  if (!DB.units.length) {
+    el.innerHTML =
+      '<div style="color:var(--soft);font-size:.8rem;font-style:italic">No units defined</div>';
+    return;
+  }
+  el.innerHTML = DB.units
+    .map(
+      (u) => `
+    <div class="unit-row">
+      <span class="unit-row-name">${u.name}</span>
+      <span class="unit-row-abbr">${u.abbr}</span>
+      <span class="unit-row-type"><span class="badge ${u.type === "variable" ? "b-green" : "b-gray"}">${u.type === "variable" ? "Weight/Vol" : "Fixed"}</span></span>
+      <button class="btn btn-sm btn-ghost" onclick="openUnitModal('${u.id}')">Edit</button>
+      <button class="btn btn-sm btn-red" onclick="delUnit('${u.id}')">✕</button>
+    </div>`,
+    )
+    .join("");
+}
+function addUnit() {
+  openUnitModal(null);
+}
+function openUnitModal(id = null) {
+  clrErr("mo-unit");
+  document.getElementById("mo-unit-title").textContent = id
+    ? "Edit Unit"
+    : "Add Unit";
+  const u = id ? DB.units.find((x) => x.id === id) || {} : {};
+  document.getElementById("fu-id").value = u.id || "";
+  document.getElementById("fu-name").value = u.name || "";
+  document.getElementById("fu-abbr").value = u.abbr || "";
+  document.getElementById("fu-type").value = u.type || "fixed";
+  openMo("mo-unit");
+}
+function saveUnit() {
+  clrErr("mo-unit");
+  const id = document.getElementById("fu-id").value;
+  const name = document.getElementById("fu-name").value.trim();
+  const abbr =
+    document.getElementById("fu-abbr").value.trim() || name.slice(0, 4);
+  const type = document.getElementById("fu-type").value;
+  if (!name) {
+    fErr("fu-name", "fu-name-e");
+    return;
+  }
+  if (id) {
+    const i = DB.units.findIndex((x) => x.id === id);
+    if (i > -1) DB.units[i] = { id, name, abbr, type };
+    toast("Unit updated", "amber");
+  } else {
+    DB.units.push({ id: uid(), name, abbr, type });
+    toast("Unit added");
+  }
+  save("units");
+  renderUnitsList();
+  fillUnitSel();
+  closeMo("mo-unit");
+}
+async function delUnit(id) {
+  const inUse = DB.items.some((i) => i.unitId === id);
+  if (inUse) {
+    Swal.fire({
+      title: "Unit In Use",
+      text: "Remove this unit from all menu items first.",
+      icon: "warning",
+    });
+    return;
+  }
+  const ok = await swalConfirm("Delete Unit?", "", "Delete");
+  if (!ok) return;
+  DB.units = DB.units.filter((x) => x.id !== id);
+  save("units");
+  renderUnitsList();
+  fillUnitSel();
+  toast("Removed", "info");
+}
+function fillUnitSel() {
+  const sel = document.getElementById("fi-unit"),
+    cur = sel.value;
+  sel.innerHTML =
+    '<option value="">Select unit…</option>' +
+    DB.units
+      .map(
+        (u) =>
+          `<option value="${u.id}" ${u.id === cur ? "selected" : ""}>${u.name} (${u.abbr})</option>`,
+      )
+      .join("");
+}
+function getUnit(unitId) {
+  return DB.units.find((u) => u.id === unitId) || null;
+}
+
+/* DATA EXPORT / IMPORT */
+function exportData() {
+  const blob = new Blob([JSON.stringify({ DB, CFG }, null, 2)], {
+    type: "application/json",
+  });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download =
+    "salepoint_backup_" + new Date().toISOString().slice(0, 10) + ".json";
+  a.click();
+  toast("Data exported", "ok");
+}
+function importDataClick() {
+  document.getElementById("import-file").click();
+}
+function importData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (data.DB) Object.assign(DB, data.DB);
+      if (data.CFG) {
+        Object.assign(CFG, data.CFG);
+        saveCFG();
+      }
+      Object.keys(DB).forEach((k) => save(k));
+      toast("Data imported successfully", "ok");
+      setTimeout(() => location.reload(), 800);
+    } catch {
+      Swal.fire({
+        title: "Import Failed",
+        text: "Invalid JSON file.",
+        icon: "error",
+      });
+    }
+  };
+  reader.readAsText(file);
+}
+async function resetAllData() {
+  const ok = await swalConfirm(
+    "Reset ALL Data?",
+    "This will permanently delete all orders, tabs, and settings. This cannot be undone.",
+    "Reset Everything",
+    "error",
+  );
+  if (!ok) return;
+  [
+    "units",
+    "cats",
+    "items",
+    "staff",
+    "tables",
+    "orders",
+    "tabs",
+    "cfg",
+    "kot_num",
+    "session",
+    "theme",
+  ].forEach((k) => localStorage.removeItem("sp_" + k));
+  toast("Reset complete — reloading…", "info");
+  setTimeout(() => location.reload(), 800);
+}
+
+/* ═══════════════════════════════════
+   IMAGE WIDGET
+═══════════════════════════════════ */
+function buildImgWidget(containerId, src, cbName) {
   const wrap = document.getElementById(containerId);
   if (!wrap) return;
-  if (currentSrc) {
-    wrap.innerHTML = `<div class="img-preview-box"><img src="${currentSrc}" alt="Preview"/><button class="img-rm-btn" type="button" onclick="rmImg('${containerId}',${JSON.stringify(onLoadCb)})">✕</button></div>`;
+  if (src) {
+    wrap.innerHTML = `<div class="img-preview-box"><img src="${src}" alt="Preview"/><button class="img-rm-btn" type="button" onclick="rmImg('${containerId}','${cbName}')">✕</button></div>`;
   } else {
-    wrap.innerHTML = `<label class="img-zone"><div class="img-zone-ico">🖼</div><div class="img-zone-lbl">Click to upload photo</div><input type="file" accept="image/*" onchange="loadImg(this,'${containerId}',${JSON.stringify(onLoadCb)})"/></label>`;
+    wrap.innerHTML = `<label class="img-zone"><div class="img-zone-ico">🖼</div><div class="img-zone-lbl">Click to upload photo</div><input type="file" accept="image/*" onchange="loadImg(this,'${containerId}','${cbName}')"/></label>`;
   }
 }
 function loadImg(input, containerId, cbName) {
@@ -630,9 +866,9 @@ function rmImg(containerId, cbName) {
   else if (cbName === "setCatImg") _catImg = null;
 }
 
-/* ═══════════════════════════
+/* ═══════════════════════════════════
    CATEGORIES CRUD
-═══════════════════════════ */
+═══════════════════════════════════ */
 function openCatModal(id = null) {
   clrErr("mo-cat");
   _catImg = null;
@@ -649,14 +885,14 @@ function openCatModal(id = null) {
 }
 function saveCat() {
   clrErr("mo-cat");
-  const id = document.getElementById("fc-id").value;
-  const name = document.getElementById("fc-name").value.trim();
-  const tag = document.getElementById("fc-tag").value;
-  const img = _catImg;
+  const id = document.getElementById("fc-id").value,
+    name = document.getElementById("fc-name").value.trim(),
+    tag = document.getElementById("fc-tag").value;
   if (!name) {
     fErr("fc-name", "fc-name-e");
     return;
   }
+  const img = _catImg;
   if (id) {
     const i = DB.cats.findIndex((x) => x.id === id);
     if (i > -1) DB.cats[i] = { ...DB.cats[i], name, tag, img };
@@ -674,9 +910,8 @@ function saveCat() {
 async function delCat(id) {
   const ok = await swalConfirm(
     "Delete Category?",
-    "This will not delete its items.",
+    "Items in this category will lose their category.",
     "Delete",
-    "warning",
   );
   if (!ok) return;
   DB.cats = DB.cats.filter((x) => x.id !== id);
@@ -695,17 +930,17 @@ function renderCatsTable() {
   tb.innerHTML = DB.cats
     .map((c) => {
       const cnt = DB.items.filter((i) => i.catId === c.id).length;
-      const imgHtml = c.img
-        ? `<div style="width:38px;height:38px;border-radius:8px;overflow:hidden;border:1px solid var(--border)"><img src="${c.img}" style="width:100%;height:100%;object-fit:cover"/></div>`
-        : `<div style="width:38px;height:38px;border-radius:8px;background:var(--mist);border:1px solid var(--border);display:flex;align-items:center;justify-content:center">${getSVG(c.name)}</div>`;
-      return `<tr><td>${imgHtml}</td><td><strong style="font-family:var(--ff-display)">${c.name}</strong></td><td><span class="badge ${TAG_CLASS[c.tag] || "b-gray"}">${c.tag}</span></td><td><span class="badge b-amber">${cnt}</span></td><td><div class="dt-acts"><button class="btn btn-sm btn-ghost" onclick="openCatModal('${c.id}')">Edit</button><button class="btn btn-sm btn-red" onclick="delCat('${c.id}')">✕</button></div></td></tr>`;
+      const img = c.img
+        ? `<div style="width:36px;height:36px;border-radius:7px;overflow:hidden;border:1px solid var(--border)"><img src="${c.img}" style="width:100%;height:100%;object-fit:cover"/></div>`
+        : `<div style="width:36px;height:36px;border-radius:7px;background:var(--mist);border:1px solid var(--border);display:flex;align-items:center;justify-content:center">${getSVG(c.name).replace('width="40" height="40"', 'width="20" height="20"')}</div>`;
+      return `<tr><td>${img}</td><td><strong style="font-family:var(--ff-display)">${c.name}</strong></td><td><span class="badge ${TAG_CLASS[c.tag] || "b-gray"}">${c.tag}</span></td><td><span class="badge b-amber">${cnt}</span></td><td><div class="dt-acts"><button class="btn btn-sm btn-ghost" onclick="openCatModal('${c.id}')">Edit</button><button class="btn btn-sm btn-red" onclick="delCat('${c.id}')">✕</button></div></td></tr>`;
     })
     .join("");
 }
 
-/* ═══════════════════════════
+/* ═══════════════════════════════════
    ITEMS CRUD
-═══════════════════════════ */
+═══════════════════════════════════ */
 function fillCatSel() {
   const sel = document.getElementById("fi-cat"),
     cur = sel.value;
@@ -722,6 +957,7 @@ function openItemModal(id = null) {
   clrErr("mo-item");
   _itemImg = null;
   fillCatSel();
+  fillUnitSel();
   document.getElementById("mo-item-title").textContent = id
     ? "Edit Dish"
     : "Add Dish";
@@ -729,22 +965,36 @@ function openItemModal(id = null) {
   document.getElementById("fi-id").value = it.id || "";
   document.getElementById("fi-name").value = it.name || "";
   document.getElementById("fi-cat").value = it.catId || "";
+  document.getElementById("fi-unit").value = it.unitId || "";
   document.getElementById("fi-price").value = it.price || "";
   document.getElementById("fi-desc").value = it.desc || "";
   document.getElementById("fi-status").value = it.status || "on";
   _itemImg = it.img || null;
   buildImgWidget("item-img-wrap", _itemImg, "setItemImg");
+  updatePriceLabel();
   openMo("mo-item");
 }
+function updatePriceLabel() {
+  const unitId = document.getElementById("fi-unit").value;
+  const unit = getUnit(unitId);
+  const lbl = document.getElementById("fi-price-label");
+  if (unit) lbl.textContent = `Price per ${unit.name} (${cur()}) *`;
+  else lbl.textContent = `Price (${cur()}) *`;
+}
+document.addEventListener("DOMContentLoaded", () => {
+  const us = document.getElementById("fi-unit");
+  if (us) us.addEventListener("change", updatePriceLabel);
+});
 function saveItem() {
   clrErr("mo-item");
-  const id = document.getElementById("fi-id").value;
-  const name = document.getElementById("fi-name").value.trim();
-  const catId = document.getElementById("fi-cat").value;
+  const id = document.getElementById("fi-id").value,
+    name = document.getElementById("fi-name").value.trim();
+  const catId = document.getElementById("fi-cat").value,
+    unitId = document.getElementById("fi-unit").value;
   const price = parseFloat(document.getElementById("fi-price").value);
-  const desc = document.getElementById("fi-desc").value.trim();
-  const status = document.getElementById("fi-status").value;
-  const img = _itemImg;
+  const desc = document.getElementById("fi-desc").value.trim(),
+    status = document.getElementById("fi-status").value,
+    img = _itemImg;
   let ok = true;
   if (!name) {
     fErr("fi-name", "fi-name-e");
@@ -754,6 +1004,10 @@ function saveItem() {
     fErr("fi-cat", "fi-cat-e");
     ok = false;
   }
+  if (!unitId) {
+    fErr("fi-unit", "fi-unit-e");
+    ok = false;
+  }
   if (isNaN(price) || price < 0) {
     fErr("fi-price", "fi-price-e");
     ok = false;
@@ -761,10 +1015,11 @@ function saveItem() {
   if (!ok) return;
   if (id) {
     const i = DB.items.findIndex((x) => x.id === id);
-    if (i > -1) DB.items[i] = { id, name, catId, price, desc, status, img };
+    if (i > -1)
+      DB.items[i] = { id, name, catId, unitId, price, desc, status, img };
     toast("Dish updated", "amber");
   } else {
-    DB.items.push({ id: uid(), name, catId, price, desc, status, img });
+    DB.items.push({ id: uid(), name, catId, unitId, price, desc, status, img });
     toast("Dish added");
   }
   save("items");
@@ -777,7 +1032,6 @@ async function delItem(id) {
     "Remove Dish?",
     "This cannot be undone.",
     "Remove",
-    "warning",
   );
   if (!ok) return;
   DB.items = DB.items.filter((x) => x.id !== id);
@@ -794,7 +1048,7 @@ function renderItemsTable() {
   );
   if (!list.length) {
     tb.innerHTML =
-      '<tr class="dt-empty"><td colspan="6">No items found</td></tr>';
+      '<tr class="dt-empty"><td colspan="7">No items found</td></tr>';
     return;
   }
   tb.innerHTML = list
@@ -803,17 +1057,18 @@ function renderItemsTable() {
         name: "—",
         tag: "gray",
       };
-      const imgHtml = it.img
-        ? `<div style="width:44px;height:44px;border-radius:9px;overflow:hidden;border:1px solid var(--border)"><img src="${it.img}" style="width:100%;height:100%;object-fit:cover"/></div>`
-        : `<div style="width:44px;height:44px;border-radius:9px;background:var(--mist);border:1px solid var(--border);display:flex;align-items:center;justify-content:center">${getSVG(cat.name)}</div>`;
-      return `<tr><td>${imgHtml}</td><td><div><div style="font-family:var(--ff-display);font-size:.93rem">${it.name}</div><div style="font-size:.67rem;color:var(--soft)">${it.desc || ""}</div></div></td><td><span class="badge ${TAG_CLASS[cat.tag] || "b-gray"}">${cat.name}</span></td><td style="font-family:var(--ff-display);font-size:.95rem;color:var(--amber3)">RS ${Number(it.price).toFixed(0)}</td><td><span class="badge ${it.status === "on" ? "b-green" : "b-red"}">${it.status === "on" ? "Available" : "86'd"}</span></td><td><div class="dt-acts"><button class="btn btn-sm btn-ghost" onclick="openItemModal('${it.id}')">Edit</button><button class="btn btn-sm btn-red" onclick="delItem('${it.id}')">✕</button></div></td></tr>`;
+      const unit = getUnit(it.unitId) || { name: "—", abbr: "" };
+      const img = it.img
+        ? `<div style="width:42px;height:42px;border-radius:8px;overflow:hidden;border:1px solid var(--border)"><img src="${it.img}" style="width:100%;height:100%;object-fit:cover"/></div>`
+        : `<div style="width:42px;height:42px;border-radius:8px;background:var(--mist);border:1px solid var(--border);display:flex;align-items:center;justify-content:center">${getSVG(cat.name).replace('width="40" height="40"', 'width="20" height="20"')}</div>`;
+      return `<tr><td>${img}</td><td><div style="font-family:var(--ff-display);font-size:.9rem">${it.name}</div><div style="font-size:.65rem;color:var(--soft)">${it.desc || ""}</div></td><td><span class="badge ${TAG_CLASS[cat.tag] || "b-gray"}">${cat.name}</span></td><td><span class="badge ${unit.type === "variable" ? "b-green" : "b-gray"}">${unit.name}</span></td><td style="font-family:var(--ff-display);color:var(--amber3)">${cur()} ${Number(it.price).toFixed(0)}/${unit.abbr}</td><td><span class="badge ${it.status === "on" ? "b-green" : "b-red"}">${it.status === "on" ? "Available" : "86'd"}</span></td><td><div class="dt-acts"><button class="btn btn-sm btn-ghost" onclick="openItemModal('${it.id}')">Edit</button><button class="btn btn-sm btn-red" onclick="delItem('${it.id}')">✕</button></div></td></tr>`;
     })
     .join("");
 }
 
-/* ═══════════════════════════
+/* ═══════════════════════════════════
    STAFF CRUD
-═══════════════════════════ */
+═══════════════════════════════════ */
 function openStaffModal(id = null) {
   clrErr("mo-staff");
   document.getElementById("mo-staff-title").textContent = id
@@ -832,8 +1087,8 @@ function saveStaff() {
   const id = document.getElementById("fs-id").value,
     name = document.getElementById("fs-name").value.trim();
   const role = document.getElementById("fs-role").value.trim(),
-    phone = document.getElementById("fs-phone").value.trim();
-  const status = document.getElementById("fs-status").value;
+    phone = document.getElementById("fs-phone").value.trim(),
+    status = document.getElementById("fs-status").value;
   if (!name) {
     fErr("fs-name", "fs-name-e");
     return;
@@ -852,7 +1107,7 @@ function saveStaff() {
   closeMo("mo-staff");
 }
 async function delStaff(id) {
-  const ok = await swalConfirm("Remove Staff Member?", "", "Remove", "warning");
+  const ok = await swalConfirm("Remove Staff?", "", "Remove");
   if (!ok) return;
   DB.staff = DB.staff.filter((x) => x.id !== id);
   save("staff");
@@ -888,9 +1143,9 @@ function syncServer() {
       .join("");
 }
 
-/* ═══════════════════════════
+/* ═══════════════════════════════════
    TABLES CRUD
-═══════════════════════════ */
+═══════════════════════════════════ */
 const TBL_ICO = { avail: "🪑", busy: "🍽", rsrvd: "📋", clean: "🧹" };
 const TBL_LBL = {
   avail: "Available",
@@ -898,7 +1153,6 @@ const TBL_LBL = {
   rsrvd: "Reserved",
   clean: "Cleaning",
 };
-
 function openTblModal(id = null) {
   clrErr("mo-tbl");
   document.getElementById("mo-tbl-title").textContent = id
@@ -931,7 +1185,7 @@ function saveTable() {
   }
   save("tables");
   renderTables();
-  syncTable();
+  syncTableDropdown();
   closeMo("mo-tbl");
 }
 function setTblStatus(id, status) {
@@ -953,7 +1207,7 @@ function renderTables() {
     .map((t) => {
       const openTab = DB.tabs.find((tb) => tb.tableId === t.id);
       const openInfo = openTab
-        ? `<div class="tbl-open" style="display:block">Tab open · ${openTab.items.reduce((s, i) => s + i.qty, 0)} items</div>`
+        ? `<div class="tbl-open" style="display:block">Open · ${openTab.items.reduce((s, i) => s + i.qty, 0)} items</div>`
         : "";
       return `<div class="tbl ${t.status}">
       <div class="tbl-icon">${TBL_ICO[t.status] || "🪑"}</div>
@@ -962,68 +1216,115 @@ function renderTables() {
       <div class="tbl-st">${TBL_LBL[t.status]}</div>
       ${openInfo}
       <div class="tbl-acts">
-        ${openTab ? `<button class="tbl-act" onclick="switchTab('${openTab.id}');nav('pos')">Open Tab</button>` : ""}
+        ${openTab ? `<button class="tbl-act" onclick="goToTab('${openTab.id}')">Open Tab</button>` : ""}
+        <button class="tbl-act" onclick="startNewTabForTable('${t.id}')">New Order</button>
         <button class="tbl-act" onclick="setTblStatus('${t.id}','avail')">Free</button>
-        <button class="tbl-act" onclick="setTblStatus('${t.id}','busy')">Busy</button>
         <button class="tbl-act" onclick="openTblModal('${t.id}')">Edit</button>
       </div>
     </div>`;
     })
     .join("");
 }
-function syncTable() {
-  const sel = document.getElementById("f-table"),
-    cur = sel.value;
-  // Mark tables that already have an open tab (excluding the current tab's table)
-  const tab = DB.tabs.find((t) => t.id === TAB_ID);
-  const currentTabTableId = tab ? tab.tableId : "";
+function syncTableDropdown() {
+  const sel = document.getElementById("f-table");
+  const activeTabTableId = getActiveTab()?.tableId || "";
   sel.innerHTML =
-    '<option value="">Takeaway</option>' +
+    '<option value="">Takeaway / No Table</option>' +
     DB.tables
       .map((t) => {
         const existingTab = DB.tabs.find(
           (tb) => tb.tableId === t.id && tb.id !== TAB_ID,
         );
-        const blocked = existingTab ? " (Tab open)" : "";
-        const disabled = existingTab ? "disabled" : "";
-        const selected = t.id === cur ? "selected" : "";
-        return `<option value="${t.id}" ${selected} ${disabled}>${t.name}${blocked} (${TBL_LBL[t.status]})</option>`;
+        const hasCurrent = activeTabTableId === t.id;
+        const blocked = existingTab && !hasCurrent;
+        return `<option value="${t.id}" ${hasCurrent ? "selected" : ""} ${blocked ? "disabled" : ""}>${t.name}${blocked ? " (Tab Open)" : ""} — ${TBL_LBL[t.status] || "?"}</option>`;
       })
       .join("");
 }
 
-/* ═══════════════════════════
-   TABLE-SCOPED TAB SYSTEM
-   One tab per table max.
-   Multiple tables = multiple tabs.
-═══════════════════════════ */
-function getOrCreateTab() {
-  if (TAB_ID) {
-    const t = DB.tabs.find((t) => t.id === TAB_ID);
-    if (t) return t;
-  }
+/* ═══════════════════════════════════════════════
+   MULTI-TABLE TAB SYSTEM — CORE FIX
+   
+   Design:
+   • DB.tabs is the array of ALL open tabs.
+   • TAB_ID is which tab the right panel is displaying.
+   • Each tab stores its own items[], guest, tableId, etc.
+   • startNewTab()   → creates a brand new empty tab (for takeaway or new table)
+   • goToTab(id)     → switch the panel to an existing tab
+   • saveActiveTab() → persist the panel's current state into the active tab object
+   • Table constraint: ONE tab per tableId (non-empty). Enforced on table select.
+═══════════════════════════════════════════════ */
+
+function getActiveTab() {
+  return DB.tabs.find((t) => t.id === TAB_ID) || null;
+}
+
+function startNewTab() {
+  /* Save whatever is currently on screen into the old tab first */
+  saveActiveTab();
   const tab = {
     id: uid(),
     createdAt: new Date().toISOString(),
     guest: "",
     tableId: "",
-    tableName: "",
+    tableName: "Takeaway",
     staffId: "",
-    staffName: "",
+    staffName: "—",
     items: [],
     note: "",
-    payment: "Cash",
+    payment: CFG.defPay || "Cash",
     kotCount: 0,
   };
   DB.tabs.push(tab);
   save("tabs");
+  TAB_ID = tab.id;
+  KOT_PENDING = new Set();
+  loadTabIntoPanel(tab);
   return tab;
 }
 
-function loadTab(tab) {
+function startNewTabForTable(tableId) {
+  /* Called from Table Map "New Order" button */
+  const existing = DB.tabs.find((tb) => tb.tableId === tableId);
+  if (existing) {
+    goToTab(existing.id);
+    nav("pos");
+    return;
+  }
+  saveActiveTab();
+  const tbl = DB.tables.find((t) => t.id === tableId);
+  const tab = {
+    id: uid(),
+    createdAt: new Date().toISOString(),
+    guest: "",
+    tableId,
+    tableName: tbl ? tbl.name : "Table",
+    staffId: "",
+    staffName: "—",
+    items: [],
+    note: "",
+    payment: CFG.defPay || "Cash",
+    kotCount: 0,
+  };
+  DB.tabs.push(tab);
+  save("tabs");
   TAB_ID = tab.id;
-  CART = [...tab.items];
-  KOT_PENDING = new Set(); // reset pending on tab switch
+  KOT_PENDING = new Set();
+  setTblStatus(tableId, "busy");
+  loadTabIntoPanel(tab);
+  nav("pos");
+}
+
+function goToTab(tabId) {
+  saveActiveTab();
+  const t = DB.tabs.find((x) => x.id === tabId);
+  if (!t) return;
+  TAB_ID = tabId;
+  KOT_PENDING = new Set();
+  loadTabIntoPanel(t);
+}
+
+function loadTabIntoPanel(tab) {
   document.getElementById("f-guest").value = tab.guest || "";
   document.getElementById("f-table").value = tab.tableId || "";
   document.getElementById("f-server").value = tab.staffId || "";
@@ -1031,49 +1332,38 @@ function loadTab(tab) {
   document.getElementById("f-disc").value = "";
   document.getElementById("op-ref").textContent =
     "Tab: " + tab.id.slice(-8).toUpperCase();
+  const pay = tab.payment || CFG.defPay || "Cash";
   document
     .querySelectorAll(".pay-btn")
     .forEach((b) =>
-      b.classList.toggle(
-        "on",
-        b.getAttribute("data-pay") === (tab.payment || "Cash"),
-      ),
+      b.classList.toggle("on", b.getAttribute("data-pay") === pay),
     );
-  PAY = tab.payment || "Cash";
+  PAY = pay;
+  syncTableDropdown();
   renderCart();
   syncBadge();
   renderTabsStrip();
   updateKotBtn();
 }
 
-function persistTab() {
+/* Persist panel fields into the active tab object */
+function saveActiveTab() {
   if (!TAB_ID) return;
   const tab = DB.tabs.find((t) => t.id === TAB_ID);
   if (!tab) return;
-  tab.items = [...CART];
   tab.guest = document.getElementById("f-guest").value.trim();
   tab.staffId = document.getElementById("f-server").value;
   tab.note = document.getElementById("f-note").value.trim();
   tab.payment = PAY;
-  // TABLE SCOPING — prevent double-assignment
-  const chosenTable = document.getElementById("f-table").value;
-  if (chosenTable && chosenTable !== tab.tableId) {
-    // Check if another tab already uses this table
-    const conflict = DB.tabs.find(
-      (tb) => tb.tableId === chosenTable && tb.id !== TAB_ID,
+  const tblId = document.getElementById("f-table").value;
+  /* only accept the table if no OTHER tab owns it */
+  if (tblId && tblId !== tab.tableId) {
+    const clash = DB.tabs.find(
+      (tb) => tb.tableId === tblId && tb.id !== TAB_ID,
     );
-    if (conflict) {
-      Swal.fire({
-        title: "Table Already Occupied",
-        text: `${DB.tables.find((t) => t.id === chosenTable)?.name || "This table"} already has an open tab. Switch to that tab or choose another table.`,
-        icon: "warning",
-        confirmButtonText: "OK",
-      });
-      document.getElementById("f-table").value = tab.tableId; // revert
-    } else {
-      tab.tableId = chosenTable;
-    }
-  } else if (!chosenTable) {
+    if (!clash) tab.tableId = tblId;
+    /* if clash, silently keep old tableId — user will see disabled option */
+  } else if (!tblId) {
     tab.tableId = "";
   }
   const tbl = DB.tables.find((t) => t.id === tab.tableId);
@@ -1081,63 +1371,69 @@ function persistTab() {
   const srv = DB.staff.find((s) => s.id === tab.staffId);
   tab.staffName = srv ? srv.name : "—";
   save("tabs");
+}
+
+/* Auto-save called on input changes */
+function autoSaveTab() {
+  saveActiveTab();
   renderTabsStrip();
 }
 
+/* Table dropdown change handler — enforce one-tab-per-table */
 function onTblChange() {
-  const chosenTable = document.getElementById("f-table").value;
-  if (!chosenTable) return;
-  const conflict = DB.tabs.find(
-    (tb) => tb.tableId === chosenTable && tb.id !== TAB_ID,
-  );
-  if (conflict) {
+  const chosen = document.getElementById("f-table").value;
+  if (!chosen) {
+    saveActiveTab();
+    renderTabsStrip();
+    return;
+  }
+  const clash = DB.tabs.find((tb) => tb.tableId === chosen && tb.id !== TAB_ID);
+  if (clash) {
     Swal.fire({
       title: "Table Already Has an Open Tab",
-      html: `<b>${DB.tables.find((t) => t.id === chosenTable)?.name || "This table"}</b> already has an open tab.<br>Would you like to switch to it?`,
+      html: `<b>${DB.tables.find((t) => t.id === chosen)?.name || "This table"}</b> already has an open tab.<br>Switch to it or choose a different table.`,
       icon: "info",
       showCancelButton: true,
       confirmButtonText: "Switch to That Tab",
       cancelButtonText: "Keep Current",
     }).then((r) => {
       if (r.isConfirmed) {
-        switchTab(conflict.id);
+        goToTab(clash.id);
         nav("pos");
       } else {
         document.getElementById("f-table").value =
-          DB.tabs.find((t) => t.id === TAB_ID)?.tableId || "";
+          getActiveTab()?.tableId || "";
       }
     });
+    return;
   }
+  saveActiveTab();
+  renderTabsStrip();
+  syncTableDropdown();
 }
 
-function switchTab(tabId) {
-  persistTab();
-  const t = DB.tabs.find((x) => x.id === tabId);
-  if (t) loadTab(t);
-}
 function killTab(tabId) {
+  const tab = DB.tabs.find((t) => t.id === tabId);
+  if (tab?.tableId) setTblStatus(tab.tableId, "avail");
   DB.tabs = DB.tabs.filter((t) => t.id !== tabId);
   save("tabs");
   if (TAB_ID === tabId) {
-    if (DB.tabs.length > 0) loadTab(DB.tabs[DB.tabs.length - 1]);
-    else {
-      TAB_ID = null;
-      CART = [];
+    if (DB.tabs.length > 0) {
+      TAB_ID = DB.tabs[DB.tabs.length - 1].id;
       KOT_PENDING = new Set();
-      const nt = getOrCreateTab();
-      TAB_ID = nt.id;
-      loadTab(nt);
-    }
+      loadTabIntoPanel(DB.tabs[DB.tabs.length - 1]);
+    } else startNewTab();
   }
   renderTabsStrip();
   renderOpenTabs();
 }
 
+/* Tab strip in order panel */
 function renderTabsStrip() {
   const area = document.getElementById("tabs-chips");
   const pill = document.getElementById("tabs-pill");
-  const n = document.getElementById("tabs-pill-n");
-  const nb = document.getElementById("tabs-n");
+  const n = document.getElementById("tabs-pill-n"),
+    nb = document.getElementById("tabs-n");
   const cnt = DB.tabs.length;
   nb.textContent = cnt;
   nb.style.display = cnt ? "flex" : "none";
@@ -1157,14 +1453,26 @@ function renderTabsStrip() {
             ? tab.guest.split(" ")[0]
             : "Tab " + tab.id.slice(-4).toUpperCase();
       const c = tab.items.reduce((s, i) => s + i.qty, 0);
-      return `<div class="tab-chip ${tab.id === TAB_ID ? "active" : ""}" onclick="switchTab('${tab.id}');nav('pos')">${lbl}${c ? ` <span style="opacity:.55">(${c})</span>` : ""}</div>`;
+      const isActive = tab.id === TAB_ID;
+      return `<div class="tab-chip ${isActive ? "active" : ""}" onclick="goToTab('${tab.id}');nav('pos')" title="${tab.tableName || "Takeaway"}">${lbl}${c ? ` <span style="opacity:.55">(${c})</span>` : ""}</div>`;
     })
     .join("");
 }
 
-/* ═══════════════════════════
-   CART
-═══════════════════════════ */
+/* ═══════════════════════════════════
+   CART — reads/writes active tab's items
+═══════════════════════════════════ */
+function getTabItems() {
+  return getActiveTab()?.items || [];
+}
+function setTabItems(arr) {
+  const t = getActiveTab();
+  if (t) {
+    t.items = arr;
+    save("tabs");
+  }
+}
+
 function buildCatBar() {
   const bar = document.getElementById("cat-bar");
   bar.innerHTML =
@@ -1172,7 +1480,7 @@ function buildCatBar() {
     DB.cats
       .map((c) => {
         const thumb = c.img
-          ? `<span class="cat-thumb"><img src="${c.img}" alt="${c.name}"/></span>`
+          ? `<span class="cat-thumb"><img src="${c.img}" alt=""/></span>`
           : `<span class="cat-thumb" style="background:${TAG_COLOR[c.tag] || "#94A3B8"}18">${getSVG(c.name).replace('width="40" height="40"', 'width="14" height="14"')}</span>`;
         return `<button class="cat-btn ${ACTIVE_CAT === c.id ? "on" : ""}" onclick="filterCat('${c.id}')">${thumb} ${c.name}</button>`;
       })
@@ -1208,6 +1516,7 @@ function renderMenu() {
         name: "",
         tag: "gray",
       };
+      const unit = getUnit(it.unitId) || { name: "pcs", abbr: "pcs" };
       const stripe = `background:${TAG_COLOR[cat.tag] || "#94A3B8"}`;
       const imgContent = it.img
         ? `<img src="${it.img}" alt="${it.name}"/>`
@@ -1219,7 +1528,7 @@ function renderMenu() {
       <div class="mc-body">
         <div class="mc-name">${it.name}</div>
         <div class="mc-cat-label">${cat.name}</div>
-        <div class="mc-price"><span class="cur">RS </span>${Number(it.price).toFixed(0)}</div>
+        <div class="mc-price"><span class="cur">${cur()} </span>${Number(it.price).toFixed(0)}<span style="font-size:.62rem;opacity:.6">/${unit.abbr}</span></div>
       </div>
       <div class="flash-ring"></div>
     </div>`;
@@ -1228,81 +1537,95 @@ function renderMenu() {
 }
 
 function addToCart(itemId, el) {
+  if (!TAB_ID) startNewTab();
   const item = DB.items.find((i) => i.id === itemId);
   if (!item || item.status === "off") return;
-  if (!TAB_ID) {
-    const tab = getOrCreateTab();
-    TAB_ID = tab.id;
-  }
   el.classList.add("flash");
   setTimeout(() => el.classList.remove("flash"), 400);
-  const ex = CART.find((c) => c.itemId === itemId);
+  const items = getTabItems();
+  const ex = items.find((c) => c.itemId === itemId);
+  const unit = getUnit(item.unitId) || {
+    name: "pcs",
+    abbr: "pcs",
+    type: "fixed",
+  };
   if (ex) {
     ex.qty++;
-    KOT_PENDING.add(ex.id); // mark as having new qty — track by id
+    KOT_PENDING.add(ex.id);
   } else {
     const cat = DB.cats.find((c) => c.id === item.catId) || { name: "" };
-    const newCI = {
+    const ni = {
       id: uid(),
       itemId,
       name: item.name,
-      price: item.price,
+      basePrice: item.price /* price per unit from definition */,
+      price: item.price /* actual per-unit charge (may differ for variable) */,
       qty: 1,
       img: item.img,
       catName: cat.name,
+      unitId: item.unitId,
+      unitName: unit.name,
+      unitAbbr: unit.abbr,
+      unitType: unit.type,
       kotSent: false,
     };
-    CART.push(newCI);
-    KOT_PENDING.add(newCI.id);
+    items.push(ni);
+    KOT_PENDING.add(ni.id);
   }
-  persistTab();
+  setTabItems(items);
+  saveActiveTab();
   renderCart();
   syncBadge();
   updateKotBtn();
+  if (CFG.autoKot === "yes") {
+    printKOT();
+  }
 }
 
 function adjQty(cid, d) {
-  const i = CART.findIndex((c) => c.id === cid);
+  const items = getTabItems(),
+    i = items.findIndex((c) => c.id === cid);
   if (i < 0) return;
-  CART[i].qty += d;
-  if (CART[i].qty <= 0) {
+  items[i].qty = Math.max(0.001, parseFloat((items[i].qty + d).toFixed(3)));
+  if (items[i].qty <= 0) {
     KOT_PENDING.delete(cid);
-    CART.splice(i, 1);
+    items.splice(i, 1);
   } else if (d > 0) KOT_PENDING.add(cid);
-  persistTab();
+  setTabItems(items);
+  saveActiveTab();
   renderCart();
   syncBadge();
   updateKotBtn();
 }
 function rmCI(cid) {
-  CART = CART.filter((c) => c.id !== cid);
+  const items = getTabItems().filter((c) => c.id !== cid);
   KOT_PENDING.delete(cid);
-  persistTab();
+  setTabItems(items);
+  saveActiveTab();
   renderCart();
   syncBadge();
   updateKotBtn();
 }
 async function clearOrder() {
-  if (!CART.length) return;
+  if (!getTabItems().length) return;
   const ok = await swalConfirm(
-    "Clear This Order?",
+    "Clear Order?",
     "All items will be removed.",
     "Clear",
-    "warning",
   );
   if (!ok) return;
-  CART = [];
+  setTabItems([]);
   KOT_PENDING = new Set();
-  persistTab();
+  saveActiveTab();
   renderCart();
   syncBadge();
   updateKotBtn();
 }
 function syncBadge() {
-  const n = CART.reduce((s, i) => s + i.qty, 0),
+  const n = getTabItems().reduce((s, i) => s + i.qty, 0),
     el = document.getElementById("cart-n");
   el.style.display = n ? "flex" : "none";
-  el.textContent = n;
+  el.textContent = Math.round(n);
 }
 function selPay(btn) {
   document
@@ -1310,203 +1633,209 @@ function selPay(btn) {
     .forEach((b) => b.classList.remove("on"));
   btn.classList.add("on");
   PAY = btn.getAttribute("data-pay");
-  persistTab();
+  saveActiveTab();
 }
 
 function renderCart() {
+  const items = getTabItems();
   const area = document.getElementById("cart-area"),
     tots = document.getElementById("op-totals");
   const kotBar = document.getElementById("kot-status-bar");
-  if (!CART.length) {
+  if (!items.length) {
     area.innerHTML = `<div class="cart-empty-state"><div class="ces-icon"><svg width="36" height="36" viewBox="0 0 36 36" fill="none"><circle cx="18" cy="18" r="17" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 3"/><path d="M12 24c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="14.5" cy="15.5" r="1.5" fill="currentColor"/><circle cx="21.5" cy="15.5" r="1.5" fill="currentColor"/></svg></div><div class="ces-text">Tap a dish to begin</div></div>`;
     tots.style.display = "none";
     kotBar.style.display = "none";
     return;
   }
-  area.innerHTML = CART.map((c, i) => {
-    const imgEl = c.img
-      ? `<img src="${c.img}" alt=""/>`
-      : `${getSVG(c.catName || "").replace('width="40" height="40"', 'width="22" height="22"')}`;
-    const isPending = KOT_PENDING.has(c.id);
-    const kotDot = `<div class="ci-kot-dot ${isPending ? "pending" : "sent"}" title="${isPending ? "Pending KOT" : "KOT Sent"}"></div>`;
-    return `${i > 0 ? '<div class="ci-sep"></div>' : ""}<div class="ci"><div class="ci-img">${imgEl}</div><div class="ci-info"><div class="ci-name">${c.name}</div><div class="ci-unit">RS ${c.price.toFixed(0)} each</div></div>${kotDot}<div class="qty-row"><button class="qb" onclick="adjQty('${c.id}',-1)">−</button><span class="qv">${c.qty}</span><button class="qb" onclick="adjQty('${c.id}',1)">+</button></div><span class="ci-total">RS ${(c.price * c.qty).toFixed(0)}</span><button class="ci-del" onclick="rmCI('${c.id}')">✕</button></div>`;
-  }).join("");
+  area.innerHTML = items
+    .map((c, i) => {
+      const imgEl = c.img
+        ? `<img src="${c.img}" alt=""/>`
+        : `${getSVG(c.catName || "").replace('width="40" height="40"', 'width="22" height="22"')}`;
+      const isPending = KOT_PENDING.has(c.id);
+      const kotDot = `<div class="ci-kot-dot ${isPending ? "pending" : "sent"}" title="${isPending ? "Pending KOT" : "KOT Sent"}"></div>`;
+      const isVar = c.unitType === "variable";
+      /* For variable units show qty with decimals and edit icon */
+      const qtyDisplay = isVar
+        ? c.qty.toFixed(3).replace(/0+$/, "").replace(/\.$/, "")
+        : c.qty;
+      const unitBadge = `<span class="ci-unit-badge ${isVar ? "variable" : ""}" onclick="openUnitAdj('${c.id}')" title="${isVar ? "Click to adjust qty/price" : "Fixed unit"}">✎ ${qtyDisplay} ${c.unitAbbr}</span>`;
+      const adjNote =
+        isVar && c.price !== c.basePrice
+          ? `<div style="font-size:.6rem;color:var(--amber3)">Custom: ${cur()} ${c.price.toFixed(0)}/${c.unitAbbr}</div>`
+          : "";
+      return `${i > 0 ? '<div class="ci-sep"></div>' : ""}<div class="ci">
+      <div class="ci-img">${imgEl}</div>
+      <div class="ci-info">
+        <div class="ci-name">${c.name}</div>
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:2px">
+          ${unitBadge}
+          <span class="ci-unit">${cur()} ${c.price.toFixed(0)} ea</span>
+        </div>
+        ${adjNote}
+      </div>
+      ${kotDot}
+      <div class="qty-row">
+        ${
+          isVar
+            ? `<button class="qb" onclick="openUnitAdj('${c.id}')">✎</button>`
+            : `<button class="qb" onclick="adjQty('${c.id}',-1)">−</button><span class="qv">${c.qty}</span><button class="qb" onclick="adjQty('${c.id}',1)">+</button>`
+        }
+      </div>
+      <span class="ci-total">${cur()} ${(c.price * c.qty).toFixed(0)}</span>
+      <button class="ci-del" onclick="rmCI('${c.id}')">✕</button>
+    </div>`;
+    })
+    .join("");
   tots.style.display = "block";
   recalc();
-  // KOT status bar
-  const pendingCount = KOT_PENDING.size;
-  if (pendingCount > 0) {
+  const pc = KOT_PENDING.size;
+  if (pc > 0) {
     kotBar.style.display = "flex";
     document.getElementById("kot-pending-n").textContent =
-      pendingCount + " new item" + (pendingCount !== 1 ? "s" : "");
-  } else {
-    kotBar.style.display = "none";
-  }
+      pc + " new item" + (pc !== 1 ? "s" : "");
+  } else kotBar.style.display = "none";
 }
 
 function recalc() {
-  const disc = parseFloat(document.getElementById("f-disc").value) || 0;
-  const sub = CART.reduce((s, i) => s + i.price * i.qty, 0);
-  const da = Math.min(disc, sub),
-    tax = (sub - da) * TAX,
-    grand = sub - da + tax;
-  document.getElementById("t-sub").textContent = "RS " + sub.toFixed(0);
-  document.getElementById("t-tax").textContent = "RS " + tax.toFixed(0);
-  document.getElementById("t-total").textContent = "RS " + grand.toFixed(0);
+  const items = getTabItems();
+  const rawDisc = parseFloat(document.getElementById("f-disc").value) || 0;
+  const sub = items.reduce((s, i) => s + i.price * i.qty, 0);
+  let disc = 0;
+  if (CFG.discType === "pct") disc = Math.min(sub, sub * (rawDisc / 100));
+  else disc = Math.min(sub, rawDisc);
+  const afterDisc = sub - disc;
+  const svcPct = CFG.serviceCharge || 0;
+  const svc = afterDisc * (svcPct / 100);
+  const taxPct = CFG.tax || 0;
+  const tax = (afterDisc + svc) * (taxPct / 100);
+  const grand = afterDisc + svc + tax;
+  document.getElementById("t-sub").textContent = cur() + " " + sub.toFixed(0);
+  document.getElementById("t-svc-lbl").textContent =
+    "Service (" + svcPct + "%)";
+  document.getElementById("t-svc").textContent = cur() + " " + svc.toFixed(0);
+  document.getElementById("t-total").textContent =
+    cur() + " " + grand.toFixed(0);
   const dr = document.getElementById("t-disc-row");
-  if (da > 0) {
+  if (disc > 0) {
     dr.style.display = "flex";
-    document.getElementById("t-disc").textContent = "-RS " + da.toFixed(0);
+    document.getElementById("t-disc").textContent =
+      "-" + cur() + " " + disc.toFixed(0);
   } else dr.style.display = "none";
-  return { sub, da, tax, grand };
+  return { sub, disc, svc, tax, grand };
 }
 
 function saveTab() {
-  if (!CART.length && !document.getElementById("f-guest").value.trim()) {
+  const items = getTabItems(),
+    guest = document.getElementById("f-guest").value.trim();
+  if (!items.length && !guest) {
     Swal.fire({
       title: "Empty Tab",
-      text: "Add at least one item or a customer name first.",
+      text: "Add items or a customer name first.",
       icon: "info",
-      confirmButtonText: "OK",
     });
     return;
   }
-  persistTab();
-  toast("Tab saved — add more items anytime", "amber");
+  saveActiveTab();
+  toast("Tab saved", "amber");
   renderTabsStrip();
 }
 
-/* ═══════════════════════════
-   KOT — Kitchen Order Ticket
-═══════════════════════════ */
-function updateKotBtn() {
-  const btn = document.getElementById("kot-btn");
-  if (KOT_PENDING.size > 0) btn.classList.add("has-items");
-  else btn.classList.remove("has-items");
+/* ═══════════════════════════════════
+   UNIT QUANTITY / PRICE ADJUSTMENT
+═══════════════════════════════════ */
+function openUnitAdj(cartId) {
+  const items = getTabItems(),
+    ci = items.find((c) => c.id === cartId);
+  if (!ci) return;
+  UA_CART_ID = cartId;
+  UA_BASE_PRICE = ci.basePrice;
+  document.getElementById("ua-title").textContent = "Adjust: " + ci.name;
+  document.getElementById("ua-item-info").innerHTML =
+    `<strong>${ci.name}</strong> &nbsp;|&nbsp; Unit: <strong>${ci.unitName} (${ci.unitAbbr})</strong><br>
+     Base price: <strong>${cur()} ${ci.basePrice.toFixed(0)} per ${ci.unitAbbr}</strong>`;
+  document.getElementById("ua-qty-label").textContent =
+    `Quantity (${ci.unitAbbr})`;
+  document.getElementById("ua-qty").value = ci.qty;
+  document.getElementById("ua-price").value = parseFloat(
+    (ci.price * ci.qty).toFixed(2),
+  );
+  updateUaRateInfo();
+  openMo("mo-unit-adj");
 }
-
-function printKOT() {
-  if (!CART.length) {
+function uaQtyChanged() {
+  const qty = parseFloat(document.getElementById("ua-qty").value) || 0;
+  const items = getTabItems(),
+    ci = items.find((c) => c.id === UA_CART_ID);
+  if (!ci) return;
+  const totalPrice =
+    qty * ci.price; /* keep per-unit price, update total shown */
+  document.getElementById("ua-price").value = parseFloat(totalPrice.toFixed(2));
+  updateUaRateInfo();
+}
+function uaPriceChanged() {
+  const totalPrice = parseFloat(document.getElementById("ua-price").value) || 0;
+  const qty = parseFloat(document.getElementById("ua-qty").value) || 0;
+  if (qty > 0) {
+    /* price changed → figure out implied qty based on base price */
+    const impliedQty = totalPrice / UA_BASE_PRICE;
+    document.getElementById("ua-qty").value = parseFloat(impliedQty.toFixed(3));
+  }
+  updateUaRateInfo();
+}
+function updateUaRateInfo() {
+  const qty = parseFloat(document.getElementById("ua-qty").value) || 0;
+  const total = parseFloat(document.getElementById("ua-price").value) || 0;
+  const perUnit = qty > 0 ? total / qty : 0;
+  const diff = perUnit - UA_BASE_PRICE;
+  const pct = UA_BASE_PRICE > 0 ? (diff / UA_BASE_PRICE) * 100 : 0;
+  let note = "";
+  if (Math.abs(diff) > 0.1)
+    note = `<span style="color:${diff < 0 ? "var(--green)" : "var(--red)"}"> (${diff < 0 ? "-" : "+"}${cur()} ${Math.abs(diff).toFixed(0)}/unit, ${pct.toFixed(0)}%)</span>`;
+  document.getElementById("ua-rate-info").innerHTML =
+    `Effective rate: <strong>${cur()} ${perUnit.toFixed(0)}/${(getTabItems().find((c) => c.id === UA_CART_ID) || { unitAbbr: "unit" }).unitAbbr}</strong>${note}<br>Total: <strong>${cur()} ${total.toFixed(0)}</strong>`;
+}
+function applyUnitAdj() {
+  const items = getTabItems(),
+    i = items.findIndex((c) => c.id === UA_CART_ID);
+  if (i < 0) {
+    closeMo("mo-unit-adj");
+    return;
+  }
+  const qty = parseFloat(document.getElementById("ua-qty").value) || 0;
+  const total = parseFloat(document.getElementById("ua-price").value) || 0;
+  if (qty <= 0) {
     Swal.fire({
-      title: "No Items",
-      text: "Add items to the order first.",
-      icon: "info",
-      confirmButtonText: "OK",
+      title: "Invalid Qty",
+      text: "Quantity must be greater than 0.",
+      icon: "warning",
     });
     return;
   }
-  // Build KOT for all pending items (new items not yet KOT-printed)
-  const pendingItems =
-    KOT_PENDING.size > 0 ? CART.filter((c) => KOT_PENDING.has(c.id)) : CART; // If nothing pending, show all items
-
-  const tab = DB.tabs.find((t) => t.id === TAB_ID);
-  const tableName =
-    tab?.tableName ||
-    document.getElementById("f-table").options[
-      document.getElementById("f-table").selectedIndex
-    ]?.text ||
-    "Takeaway";
-  const serverName =
-    DB.staff.find((s) => s.id === document.getElementById("f-server").value)
-      ?.name || "—";
-  const now = new Date();
-  const timeStr = now.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  const dateStr = now.toLocaleDateString("en-US", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-
-  const kotHtml = buildKOTHtml({
-    kotNum: KOT_NUM,
-    table: tableName,
-    server: serverName,
-    time: timeStr,
-    date: dateStr,
-    items: pendingItems,
-    isPartial: KOT_PENDING.size > 0 && KOT_PENDING.size < CART.length,
-  });
-
-  document.getElementById("kot-area").innerHTML = kotHtml;
-  openMo("mo-kot");
-}
-
-function buildKOTHtml({ kotNum, table, server, time, date, items, isPartial }) {
-  const rows = items
-    .map(
-      (i) =>
-        `<div class="kot-item new">
-      <span class="kot-item-name">${i.name} <span class="new-badge">NEW</span></span>
-      <span class="kot-item-qty">×${i.qty}</span>
-    </div>`,
-    )
-    .join("");
-
-  return `<div class="kot-print">
-    <div class="kot-header">
-      <div class="kot-title">Kitchen Order Ticket</div>
-      <div class="kot-sub">The Sale Point POS</div>
-    </div>
-    <div class="kot-meta">
-      <div class="kot-meta-row"><span>KOT #</span><strong>${kotNum}</strong></div>
-      <div class="kot-meta-row"><span>Table</span><strong>${table}</strong></div>
-      <div class="kot-meta-row"><span>Server</span><strong>${server}</strong></div>
-      <div class="kot-meta-row"><span>Time</span><strong>${time}</strong></div>
-      <div class="kot-meta-row"><span>Date</span><strong>${date}</strong></div>
-      ${isPartial ? `<div class="kot-meta-row"><span>Type</span><strong style="color:#F59E0B">ADD-ON ORDER</strong></div>` : ""}
-    </div>
-    <div class="kot-items-head"><span>Item</span><span>Qty</span></div>
-    ${rows}
-    <div class="kot-footer">
-      <div class="kot-footer-txt">Please prepare immediately</div>
-      <div class="kot-num">${date} · ${time}</div>
-    </div>
-  </div>`;
-}
-
-function doPrintKOT() {
-  // Mark pending items as KOT-sent
-  KOT_PENDING.forEach((id) => {
-    const ci = CART.find((c) => c.id === id);
-    if (ci) ci.kotSent = true;
-  });
-  KOT_PENDING = new Set();
-
-  // Increment KOT number
-  KOT_NUM++;
-  LS.set("kot_num", KOT_NUM);
-
-  // Update tab kotCount
-  const tab = DB.tabs.find((t) => t.id === TAB_ID);
-  if (tab) {
-    tab.kotCount = (tab.kotCount || 0) + 1;
-    save("tabs");
-  }
-
-  // Print
-  document.getElementById("print-zone").innerHTML =
-    document.getElementById("kot-area").innerHTML;
-  window.print();
-
-  closeMo("mo-kot");
-  persistTab();
+  items[i].qty = qty;
+  items[i].price =
+    qty > 0
+      ? total / qty
+      : items[i].basePrice; /* store per-unit effective price */
+  KOT_PENDING.add(UA_CART_ID);
+  setTabItems(items);
+  saveActiveTab();
   renderCart();
+  syncBadge();
   updateKotBtn();
-  toast("KOT printed successfully", "ok");
+  closeMo("mo-unit-adj");
+  toast("Quantity / price updated", "ok");
 }
 
-/* ═══════════════════════════
+/* ═══════════════════════════════════
    OPEN TABS PAGE
-═══════════════════════════ */
+═══════════════════════════════════ */
 function renderOpenTabs() {
   const g = document.getElementById("tabs-grid");
   const open = DB.tabs.filter((t) => t.items.length > 0 || t.guest);
   if (!open.length) {
     g.innerHTML =
-      '<div style="grid-column:1/-1;padding:60px;text-align:center;color:var(--soft);font-family:var(--ff-display);font-size:1.1rem;font-style:italic">No open tabs — all bills settled</div>';
+      '<div class="tabs-empty">No open tabs — all bills settled</div>';
     return;
   }
   g.innerHTML = open
@@ -1518,7 +1847,7 @@ function renderOpenTabs() {
           const imgEl = i.img
             ? `<img src="${i.img}" alt=""/>`
             : `${getSVG(i.catName || "").replace('width="40" height="40"', 'width="18" height="18"')}`;
-          return `<div class="ot-item"><div class="ot-item-img">${imgEl}</div><span class="ot-item-name">${i.name}</span><span class="ot-item-qty">×${i.qty}</span><span class="ot-item-price">RS ${(i.price * i.qty).toFixed(0)}</span></div>`;
+          return `<div class="ot-item"><div class="ot-item-img">${imgEl}</div><span class="ot-item-name">${i.name}</span><span class="ot-item-qty">${i.qty}${i.unitAbbr ? ` ${i.unitAbbr}` : ""}</span><span class="ot-item-price">${cur()} ${(i.price * i.qty).toFixed(0)}</span></div>`;
         })
         .join("");
       const meta =
@@ -1531,10 +1860,7 @@ function renderOpenTabs() {
           .join(" · ") || "No details";
       return `<div class="ot-card">
       <div class="ot-head">
-        <div>
-          <div class="ot-tag">${tab.tableName || "Takeaway"}${tab.staffName && tab.staffName !== "—" ? " · " + tab.staffName : ""}</div>
-          <div class="ot-meta">${meta}</div>
-        </div>
+        <div><div class="ot-tag">${tab.tableName || "Takeaway"}${tab.staffName && tab.staffName !== "—" ? " · " + tab.staffName : ""}</div><div class="ot-meta">${meta}</div></div>
         <div style="display:flex;gap:5px;align-items:center">
           <span class="badge ${isCur ? "b-amber" : "b-gray"}">${isCur ? "Active" : "Open"}</span>
           <button class="btn btn-sm btn-red" onclick="killTab('${tab.id}')">✕</button>
@@ -1542,10 +1868,10 @@ function renderOpenTabs() {
       </div>
       <div class="ot-items">${rows || '<div style="font-size:.77rem;color:var(--soft);padding:10px 0;font-style:italic">No items yet</div>'}</div>
       <div class="ot-foot">
-        <div><div class="ot-total-l">Running Total</div><div class="ot-total-n">RS ${tot.toFixed(0)}</div></div>
+        <div><div class="ot-total-l">Running Total</div><div class="ot-total-n">${cur()} ${tot.toFixed(0)}</div></div>
         <div class="ot-actions">
-          <button class="btn btn-sm btn-outline" onclick="switchTab('${tab.id}');nav('pos')">+ Add Items</button>
-          <button class="btn btn-sm btn-amber" onclick="switchTab('${tab.id}');nav('pos');setTimeout(()=>confirmOrder(),400)">Bill</button>
+          <button class="btn btn-sm btn-outline" onclick="goToTab('${tab.id}');nav('pos')">+ Items</button>
+          <button class="btn btn-sm btn-amber" onclick="goToTab('${tab.id}');nav('pos');setTimeout(confirmOrder,400)">Bill</button>
         </div>
       </div>
     </div>`;
@@ -1553,40 +1879,108 @@ function renderOpenTabs() {
     .join("");
 }
 
-/* ═══════════════════════════
+/* ═══════════════════════════════════
+   KOT
+═══════════════════════════════════ */
+function updateKotBtn() {
+  const btn = document.getElementById("kot-btn");
+  if (KOT_PENDING.size > 0) btn.classList.add("has-items");
+  else btn.classList.remove("has-items");
+}
+function printKOT() {
+  const items = getTabItems();
+  if (!items.length) {
+    Swal.fire({ title: "No Items", text: "Add items first.", icon: "info" });
+    return;
+  }
+  const tab = getActiveTab();
+  const pendingItems =
+    KOT_PENDING.size > 0 ? items.filter((c) => KOT_PENDING.has(c.id)) : items;
+  const now = new Date();
+  document.getElementById("kot-area").innerHTML = buildKOTHtml({
+    kotNum: KOT_NUM,
+    table: tab?.tableName || "Takeaway",
+    server: DB.staff.find((s) => s.id === tab?.staffId)?.name || "—",
+    time: now.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    date: now.toLocaleDateString("en-US", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }),
+    items: pendingItems,
+    isPartial: KOT_PENDING.size > 0 && KOT_PENDING.size < items.length,
+  });
+  openMo("mo-kot");
+}
+function buildKOTHtml({ kotNum, table, server, time, date, items, isPartial }) {
+  const rows = items
+    .map(
+      (i) =>
+        `<div class="kot-item new"><span class="kot-item-name">${i.name} <span class="new-badge">NEW</span></span><span class="kot-item-qty">${i.qty}${i.unitAbbr ? ` ${i.unitAbbr}` : ""}</span></div>`,
+    )
+    .join("");
+  return `<div class="kot-print"><div class="kot-header"><div class="kot-title">Kitchen Order Ticket</div><div class="kot-sub">${CFG.restName}</div></div><div class="kot-meta"><div class="kot-meta-row"><span>KOT #</span><strong>${kotNum}</strong></div><div class="kot-meta-row"><span>Table</span><strong>${table}</strong></div><div class="kot-meta-row"><span>Server</span><strong>${server}</strong></div><div class="kot-meta-row"><span>Time</span><strong>${time} · ${date}</strong></div>${isPartial ? '<div class="kot-meta-row"><span>Type</span><strong style="color:#F59E0B">ADD-ON</strong></div>' : ""}</div><div class="kot-items-head"><span>Item</span><span>Qty</span></div>${rows}<div class="kot-footer"><div class="kot-footer-txt">Prepare immediately</div></div></div>`;
+}
+function doPrintKOT() {
+  const items = getTabItems();
+  KOT_PENDING.forEach((id) => {
+    const ci = items.find((c) => c.id === id);
+    if (ci) ci.kotSent = true;
+  });
+  KOT_PENDING = new Set();
+  KOT_NUM++;
+  LS.set("kot_num", KOT_NUM);
+  const tab = getActiveTab();
+  if (tab) {
+    tab.kotCount = (tab.kotCount || 0) + 1;
+    save("tabs");
+  }
+  setTabItems(items);
+  document.getElementById("print-zone").innerHTML =
+    document.getElementById("kot-area").innerHTML;
+  window.print();
+  closeMo("mo-kot");
+  saveActiveTab();
+  renderCart();
+  updateKotBtn();
+  toast("KOT printed", "ok");
+}
+
+/* ═══════════════════════════════════
    CONFIRM & BILL
-═══════════════════════════ */
+═══════════════════════════════════ */
 async function confirmOrder() {
-  persistTab();
-  const tab = DB.tabs.find((t) => t.id === TAB_ID);
+  saveActiveTab();
+  const tab = getActiveTab();
   if (!tab || !tab.items.length) {
     Swal.fire({
       title: "Empty Order",
-      text: "No items in this order.",
+      text: "Add items before billing.",
       icon: "warning",
-      confirmButtonText: "OK",
     });
     return;
   }
-  // Warn if there are unprinted KOT items
   if (KOT_PENDING.size > 0) {
-    const res = await Swal.fire({
+    const r = await Swal.fire({
       title: "Unprinted KOT Items",
-      text: `There are ${KOT_PENDING.size} item(s) not yet sent to kitchen. Print KOT before closing?`,
+      text: `${KOT_PENDING.size} item(s) not yet sent to kitchen.`,
       icon: "warning",
       showDenyButton: true,
       showCancelButton: true,
       confirmButtonText: "Print KOT First",
-      denyButtonText: "Close Without KOT",
+      denyButtonText: "Bill Without KOT",
       cancelButtonText: "Cancel",
     });
-    if (res.isConfirmed) {
+    if (r.isConfirmed) {
       printKOT();
       return;
     }
-    if (res.isDismissed) return;
+    if (r.isDismissed) return;
   }
-  const { sub, da, tax, grand } = recalc();
+  const { sub, disc, svc, tax, grand } = recalc();
   const now = new Date();
   const order = {
     id: tab.id,
@@ -1599,7 +1993,8 @@ async function confirmOrder() {
     tableName: tab.tableName || "Takeaway",
     items: [...tab.items],
     subtotal: sub,
-    discount: da,
+    discount: disc,
+    serviceCharge: svc,
     tax,
     total: grand,
     payMethod: PAY,
@@ -1608,22 +2003,13 @@ async function confirmOrder() {
   DB.orders.push(order);
   save("orders");
   ORDER_NUM++;
-  if (tab.tableId) setTblStatus(tab.tableId, "avail"); // Free the table
+  if (tab.tableId) setTblStatus(tab.tableId, "avail");
   DB.tabs = DB.tabs.filter((t) => t.id !== tab.id);
   save("tabs");
   document.getElementById("rcpt-area").innerHTML = buildRcpt(order);
   openMo("mo-rcpt");
   toast("Order #" + order.num + " confirmed ✦", "amber");
-  TAB_ID = null;
-  CART = [];
-  KOT_PENDING = new Set();
-  const nt = getOrCreateTab();
-  TAB_ID = nt.id;
-  renderCart();
-  syncBadge();
-  renderTabsStrip();
-  updateKotBtn();
-  refreshPOS();
+  startNewTab();
 }
 
 function buildRcpt(o) {
@@ -1643,12 +2029,20 @@ function buildRcpt(o) {
       const imgEl = i.img
         ? `<img src="${i.img}" alt=""/>`
         : `${getSVG(i.catName || "").replace('width="40" height="40"', 'width="16" height="16"')}`;
-      return `<div class="rcpt-item"><div class="rcpt-item-img">${imgEl}</div><span class="rcpt-item-name">${i.name}</span><span class="rcpt-item-qty">×${i.qty}</span><span class="rcpt-item-amt">RS ${(i.price * i.qty).toFixed(0)}</span></div>`;
+      const qtyStr = i.unitAbbr ? `${i.qty}${i.unitAbbr}` : `×${i.qty}`;
+      return `<div class="rcpt-item"><div class="rcpt-item-img">${imgEl}</div><span class="rcpt-item-name">${i.name}</span><span class="rcpt-item-qty">${qtyStr}</span><span class="rcpt-item-amt">${cur()} ${(i.price * i.qty).toFixed(0)}</span></div>`;
     })
     .join("");
-  return `<div class="rcpt"><div class="rcpt-top"><div class="rcpt-logo">The Sale Point</div><div class="rcpt-sub">Restaurant POS</div><hr class="rcpt-hr"/><div class="rcpt-oid">Order #${o.num} · ${o.id.toUpperCase().slice(0, 10)}</div></div><div class="rcpt-body"><div class="rcpt-meta"><div class="rcpt-mr"><span>Date</span><strong>${ds}</strong></div><div class="rcpt-mr"><span>Time</span><strong>${ts}</strong></div><div class="rcpt-mr"><span>Guest</span><strong>${o.guest}</strong></div><div class="rcpt-mr"><span>Table</span><strong>${o.tableName}</strong></div><div class="rcpt-mr"><span>Server</span><strong>${o.staffName}</strong></div></div><div class="rcpt-items-hd"><span>Dish</span><span>Qty</span><span>Amount</span></div>${rows}<div class="rcpt-sums"><div class="rcpt-sr"><span>Subtotal</span><span>RS ${o.subtotal.toFixed(0)}</span></div>${o.discount > 0 ? `<div class="rcpt-sr" style="color:#059669"><span>Discount</span><span>-RS ${o.discount.toFixed(0)}</span></div>` : ""}<div class="rcpt-sr"><span>Tax</span><span>RS ${o.tax.toFixed(0)}</span></div><div class="rcpt-sr grand"><span class="rsl">Total</span><span class="rsv">RS ${o.total.toFixed(0)}</span></div></div><div class="rcpt-pay-row"><span>Payment</span><strong>${o.payMethod}</strong></div>${o.note ? `<div style="margin-top:8px;padding:6px 10px;background:#f0ece4;border-radius:5px;font-size:.7rem;color:#7a7268">Note: ${o.note}</div>` : ""}</div><div class="rcpt-foot"><div class="rcpt-dots">· · · · · · ·</div><div class="rcpt-thanks">Thank you for visiting!</div><div class="rcpt-sub-msg">Please come again</div></div></div>`;
+  const svcRow =
+    o.serviceCharge > 0
+      ? `<div class="rcpt-sr"><span>Service Charge (${CFG.serviceCharge}%)</span><span>${cur()} ${o.serviceCharge.toFixed(0)}</span></div>`
+      : "";
+  const taxRow =
+    o.tax > 0
+      ? `<div class="rcpt-sr"><span>Tax (${CFG.tax}%)</span><span>${cur()} ${o.tax.toFixed(0)}</span></div>`
+      : "";
+  return `<div class="rcpt"><div class="rcpt-top"><div class="rcpt-logo">${CFG.restName}</div><div class="rcpt-sub">${CFG.restAddress || "Restaurant POS"}</div><hr class="rcpt-hr"/><div class="rcpt-oid">Order #${o.num} · ${o.id.toUpperCase().slice(0, 8)}</div></div><div class="rcpt-body"><div class="rcpt-meta"><div class="rcpt-mr"><span>Date</span><strong>${ds}</strong></div><div class="rcpt-mr"><span>Time</span><strong>${ts}</strong></div><div class="rcpt-mr"><span>Guest</span><strong>${o.guest}</strong></div><div class="rcpt-mr"><span>Table</span><strong>${o.tableName}</strong></div><div class="rcpt-mr"><span>Server</span><strong>${o.staffName}</strong></div></div><div class="rcpt-items-hd"><span>Dish</span><span>Qty</span><span>Amount</span></div>${rows}<div class="rcpt-sums"><div class="rcpt-sr"><span>Subtotal</span><span>${cur()} ${o.subtotal.toFixed(0)}</span></div>${o.discount > 0 ? `<div class="rcpt-sr" style="color:#059669"><span>Discount</span><span>-${cur()} ${o.discount.toFixed(0)}</span></div>` : ""}${svcRow}${taxRow}<div class="rcpt-sr grand"><span class="rsl">Total</span><span class="rsv">${cur()} ${o.total.toFixed(0)}</span></div></div><div class="rcpt-pay-row"><span>Payment</span><strong>${o.payMethod}</strong></div>${o.note ? `<div style="margin-top:8px;padding:6px 10px;background:#f0ece4;border-radius:5px;font-size:.7rem;color:#7a7268">Note: ${o.note}</div>` : ""}</div><div class="rcpt-foot"><div class="rcpt-dots">· · · · ·</div><div class="rcpt-thanks">${CFG.rcptFooter || "Thank you!"}</div></div></div>`;
 }
-
 function printRcpt() {
   document.getElementById("print-zone").innerHTML =
     document.getElementById("rcpt-area").innerHTML;
@@ -1661,40 +2055,85 @@ function viewRcpt(id) {
   openMo("mo-rcpt");
 }
 
-/* ═══════════════════════════
-   ORDER HISTORY
-═══════════════════════════ */
+/* ═══════════════════════════════════
+   ORDER HISTORY + DATE FILTERS
+═══════════════════════════════════ */
+function setDatePreset(p) {
+  const now = new Date(),
+    fmt = (d) => d.toISOString().slice(0, 10);
+  const from = document.getElementById("h-from"),
+    to = document.getElementById("h-to");
+  if (p === "today") {
+    from.value = fmt(now);
+    to.value = fmt(now);
+  } else if (p === "week") {
+    const s = new Date(now);
+    s.setDate(now.getDate() - now.getDay());
+    from.value = fmt(s);
+    to.value = fmt(now);
+  } else if (p === "month") {
+    const s = new Date(now.getFullYear(), now.getMonth(), 1);
+    from.value = fmt(s);
+    to.value = fmt(now);
+  } else {
+    from.value = "";
+    to.value = "";
+  }
+  renderHistory();
+}
 function renderHistory() {
   const feed = document.getElementById("history-feed"),
-    q = (document.getElementById("q-orders") || {}).value || "";
-  const list = [...DB.orders]
-    .reverse()
-    .filter(
-      (o) =>
-        o.guest.toLowerCase().includes(q.toLowerCase()) ||
-        String(o.num).includes(q),
-    );
+    summary = document.getElementById("history-summary");
+  const q = (document.getElementById("q-orders") || {}).value || "";
+  const fromVal = document.getElementById("h-from").value;
+  const toVal = document.getElementById("h-to").value;
+  const fromD = fromVal ? new Date(fromVal + "T00:00:00") : null;
+  const toD = toVal ? new Date(toVal + "T23:59:59") : null;
+  const list = [...DB.orders].reverse().filter((o) => {
+    if (
+      q &&
+      !o.guest.toLowerCase().includes(q.toLowerCase()) &&
+      !String(o.num).includes(q)
+    )
+      return false;
+    const d = new Date(o.createdAt);
+    if (fromD && d < fromD) return false;
+    if (toD && d > toD) return false;
+    return true;
+  });
+  /* Summary bar */
+  const totRev = list.reduce((s, o) => s + o.total, 0);
+  const totItems = list.reduce(
+    (s, o) => s + o.items.reduce((a, i) => a + i.qty, 0),
+    0,
+  );
+  summary.innerHTML = list.length
+    ? `
+    <div class="hs-item"><div class="hs-n">${list.length}</div><div class="hs-l">Orders</div></div>
+    <div class="hs-item"><div class="hs-n">${cur()} ${totRev.toFixed(0)}</div><div class="hs-l">Revenue</div></div>
+    <div class="hs-item"><div class="hs-n">${cur()} ${list.length ? (totRev / list.length).toFixed(0) : 0}</div><div class="hs-l">Avg Order</div></div>
+    <div class="hs-item"><div class="hs-n">${Math.round(totItems)}</div><div class="hs-l">Items Sold</div></div>
+  `
+    : "";
   if (!list.length) {
     feed.innerHTML =
-      '<div style="text-align:center;padding:60px;color:var(--soft);font-family:var(--ff-display);font-size:1.1rem;font-style:italic">No orders yet</div>';
+      '<div style="text-align:center;padding:60px;color:var(--soft);font-family:var(--ff-display);font-size:1.1rem;font-style:italic">No orders found</div>';
     return;
   }
   feed.innerHTML = list
     .map((o) => {
       const d = new Date(o.createdAt);
       const items = o.items.map((i) => i.name).join(", ");
-      return `<div class="oh-item"><div class="oh-num"><div class="oh-n">#${o.num}</div><div class="oh-d">${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div></div><div class="oh-body"><div class="oh-guest">${o.guest}</div><div class="oh-items-txt">${items.slice(0, 65)}${items.length > 65 ? "…" : ""}</div><div class="oh-tags"><span class="badge b-amber">${o.tableName}</span><span class="badge b-green">${o.payMethod}</span><span class="badge b-gray">${o.items.reduce((s, i) => s + i.qty, 0)} items</span>${o.staffName && o.staffName !== "—" ? `<span class="badge b-blue">${o.staffName}</span>` : ""}</div></div><div class="oh-right"><div class="oh-total">RS ${o.total.toFixed(0)}</div><div class="oh-time">${d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</div><div class="oh-acts"><button class="btn btn-sm btn-outline" onclick="viewRcpt('${o.id}')">Receipt</button></div></div></div>`;
+      return `<div class="oh-item"><div class="oh-num"><div class="oh-n">#${o.num}</div><div class="oh-d">${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div></div><div class="oh-body"><div class="oh-guest">${o.guest}</div><div class="oh-items-txt">${items.slice(0, 70)}${items.length > 70 ? "…" : ""}</div><div class="oh-tags"><span class="badge b-amber">${o.tableName}</span><span class="badge b-green">${o.payMethod}</span><span class="badge b-gray">${o.items.reduce((s, i) => s + i.qty, 0) | 0} items</span>${o.staffName && o.staffName !== "—" ? `<span class="badge b-blue">${o.staffName}</span>` : ""}</div></div><div class="oh-right"><div class="oh-total">${cur()} ${o.total.toFixed(0)}</div><div class="oh-time">${d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</div><div class="oh-acts"><button class="btn btn-sm btn-outline" onclick="viewRcpt('${o.id}')">Receipt</button></div></div></div>`;
     })
     .join("");
 }
-
 async function clearHistory() {
   if (!DB.orders.length) return;
   const ok = await swalConfirm(
     "Clear All History?",
     "This cannot be undone.",
     "Clear All",
-    "warning",
   );
   if (!ok) return;
   DB.orders = [];
@@ -1704,34 +2143,33 @@ async function clearHistory() {
   toast("Cleared", "info");
 }
 
-/* ═══════════════════════════
+/* ═══════════════════════════════════
    DASHBOARD
-═══════════════════════════ */
+═══════════════════════════════════ */
 function renderDash() {
   const today = new Date().toDateString();
   const tod = DB.orders.filter(
     (o) => new Date(o.createdAt).toDateString() === today,
   );
-  const todR = tod.reduce((s, o) => s + o.total, 0);
-  const totR = DB.orders.reduce((s, o) => s + o.total, 0);
-  const avg = DB.orders.length ? totR / DB.orders.length : 0;
+  const todR = tod.reduce((s, o) => s + o.total, 0),
+    totR = DB.orders.reduce((s, o) => s + o.total, 0),
+    avg = DB.orders.length ? totR / DB.orders.length : 0;
   document.getElementById("dash-stats").innerHTML =
-    `<div class="stat-card"><div class="stat-bg">💰</div><div class="stat-n"><span class="cur">RS </span>${todR.toFixed(0)}</div><div class="stat-l">Today Revenue</div></div><div class="stat-card"><div class="stat-bg">📜</div><div class="stat-n">${tod.length}</div><div class="stat-l">Today Orders</div></div><div class="stat-card"><div class="stat-bg">◈</div><div class="stat-n"><span class="cur">RS </span>${totR.toFixed(0)}</div><div class="stat-l">Total Revenue</div></div><div class="stat-card"><div class="stat-bg">✦</div><div class="stat-n"><span class="cur">RS </span>${avg.toFixed(0)}</div><div class="stat-l">Avg Order</div></div>`;
+    `<div class="stat-card"><div class="stat-bg">💰</div><div class="stat-n"><span class="cur">${cur()} </span>${todR.toFixed(0)}</div><div class="stat-l">Today Revenue</div></div><div class="stat-card"><div class="stat-bg">📜</div><div class="stat-n">${tod.length}</div><div class="stat-l">Today Orders</div></div><div class="stat-card"><div class="stat-bg">◈</div><div class="stat-n"><span class="cur">${cur()} </span>${totR.toFixed(0)}</div><div class="stat-l">Total Revenue</div></div><div class="stat-card"><div class="stat-bg">✦</div><div class="stat-n"><span class="cur">${cur()} </span>${avg.toFixed(0)}</div><div class="stat-l">Avg Order</div></div>`;
   document.getElementById("dash-today-n").textContent = tod.length;
   const te = document.getElementById("dash-today");
-  if (!tod.length) {
+  if (!tod.length)
     te.innerHTML =
       '<div style="color:var(--soft);font-size:.82rem;padding:12px 0;font-style:italic">No orders today</div>';
-  } else
+  else
     te.innerHTML = [...tod]
       .reverse()
       .slice(0, 7)
       .map((o) => {
         const d = new Date(o.createdAt);
-        return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)"><span style="font-size:.66rem;color:var(--soft);white-space:nowrap">${d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span><span style="flex:1;font-family:var(--ff-display);font-size:.92rem">${o.guest}</span><span style="font-family:var(--ff-display);font-size:.95rem;color:var(--amber3)">RS ${o.total.toFixed(0)}</span></div>`;
+        return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)"><span style="font-size:.66rem;color:var(--soft);white-space:nowrap">${d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span><span style="flex:1;font-family:var(--ff-display);font-size:.92rem">${o.guest}</span><span style="font-family:var(--ff-display);font-size:.95rem;color:var(--amber3)">${cur()} ${o.total.toFixed(0)}</span></div>`;
       })
       .join("");
-
   const dc = {};
   DB.orders.forEach((o) =>
     o.items.forEach((i) => {
@@ -1749,10 +2187,9 @@ function renderDash() {
     : td
         .map(
           ([n, d]) =>
-            `<div class="perf-item"><div class="perf-row"><span>${n}</span><span>${d.q}× · RS ${d.r.toFixed(0)}</span></div><div class="perf-track"><div class="perf-fill" style="width:${(d.r / mx) * 100}%"></div></div></div>`,
+            `<div class="perf-item"><div class="perf-row"><span>${n}</span><span>${cur()} ${d.r.toFixed(0)}</span></div><div class="perf-track"><div class="perf-fill" style="width:${(d.r / mx) * 100}%"></div></div></div>`,
         )
         .join("");
-
   const cr = {};
   DB.orders.forEach((o) =>
     o.items.forEach((i) => {
@@ -1770,10 +2207,9 @@ function renderDash() {
     : ca
         .map(
           ([n, d]) =>
-            `<div class="perf-item"><div class="perf-row"><span>${n}</span><span style="color:var(--amber3)">RS ${d.r.toFixed(0)}</span></div><div class="perf-track"><div class="perf-fill" style="width:${(d.r / mc) * 100}%"></div></div></div>`,
+            `<div class="perf-item"><div class="perf-row"><span>${n}</span><span style="color:var(--amber3)">${cur()} ${d.r.toFixed(0)}</span></div><div class="perf-track"><div class="perf-fill" style="width:${(d.r / mc) * 100}%"></div></div></div>`,
         )
         .join("");
-
   const sr = {};
   DB.orders.forEach((o) => {
     if (o.staffName && o.staffName !== "—") {
@@ -1788,36 +2224,39 @@ function renderDash() {
     : sa
         .map(
           ([n, d]) =>
-            `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)"><div><div style="font-family:var(--ff-display);font-size:.93rem">${n}</div><div style="font-size:.65rem;color:var(--soft)">${d.n} order${d.n !== 1 ? "s" : ""}</div></div><div style="text-align:right"><div style="font-family:var(--ff-display);font-size:1.05rem;color:var(--amber3)">RS ${d.r.toFixed(0)}</div></div></div>`,
+            `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)"><div><div style="font-family:var(--ff-display);font-size:.93rem">${n}</div><div style="font-size:.65rem;color:var(--soft)">${d.n} order${d.n !== 1 ? "s" : ""}</div></div><div style="font-family:var(--ff-display);font-size:1.05rem;color:var(--amber3)">${cur()} ${d.r.toFixed(0)}</div></div>`,
         )
         .join("");
 }
-
 function renderMaster() {
   renderItemsTable();
   renderCatsTable();
   renderStaffTable();
 }
 
-/* ═══════════════════════════
-   REFRESH POS
-═══════════════════════════ */
+/* ═══════════════════════════════════
+   REFRESH POS PANEL
+═══════════════════════════════════ */
 function refreshPOS() {
   buildCatBar();
   renderMenu();
-  syncTable();
+  syncTableDropdown();
   syncServer();
-  if (TAB_ID) {
-    const tab = DB.tabs.find((t) => t.id === TAB_ID);
-    if (tab) {
-      CART = [...tab.items];
-      document.getElementById("f-guest").value = tab.guest || "";
-      document.getElementById("f-table").value = tab.tableId || "";
-      document.getElementById("f-server").value = tab.staffId || "";
-      document.getElementById("f-note").value = tab.note || "";
-      document.getElementById("op-ref").textContent =
-        "Tab: " + tab.id.slice(-8).toUpperCase();
-    }
+  const tab = getActiveTab();
+  if (tab) {
+    document.getElementById("f-guest").value = tab.guest || "";
+    document.getElementById("f-table").value = tab.tableId || "";
+    document.getElementById("f-server").value = tab.staffId || "";
+    document.getElementById("f-note").value = tab.note || "";
+    document.getElementById("op-ref").textContent =
+      "Tab: " + tab.id.slice(-8).toUpperCase();
+    const pay = tab.payment || CFG.defPay || "Cash";
+    document
+      .querySelectorAll(".pay-btn")
+      .forEach((b) =>
+        b.classList.toggle("on", b.getAttribute("data-pay") === pay),
+      );
+    PAY = pay;
   }
   renderCart();
   syncBadge();
@@ -1825,9 +2264,9 @@ function refreshPOS() {
   updateKotBtn();
 }
 
-/* ═══════════════════════════
+/* ═══════════════════════════════════
    CLOCK
-═══════════════════════════ */
+═══════════════════════════════════ */
 function tick() {
   const d = new Date();
   document.getElementById("clk").textContent =
@@ -1840,30 +2279,29 @@ function tick() {
     d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 }
 
-/* ═══════════════════════════
+/* ═══════════════════════════════════
    INIT
-═══════════════════════════ */
+═══════════════════════════════════ */
 function initApp() {
   loadDB();
   tick();
   setInterval(tick, 30000);
+  /* Restore active tab or create new one */
   if (DB.tabs.length > 0) {
     TAB_ID = DB.tabs[DB.tabs.length - 1].id;
-    CART = [...DB.tabs[DB.tabs.length - 1].items];
+    KOT_PENDING = new Set();
   } else {
-    const tab = getOrCreateTab();
+    const tab = startNewTab();
     TAB_ID = tab.id;
   }
   refreshPOS();
   renderDash();
 }
 
-/* ── App boot ── */
 window.addEventListener("DOMContentLoaded", () => {
   initTheme();
-  // Check saved session
   const session = LS.get("session");
-  if (session && session.username) {
+  if (session?.username) {
     const found = USERS.find((u) => u.username === session.username);
     if (found) {
       CURRENT_USER = found;
@@ -1874,7 +2312,6 @@ window.addEventListener("DOMContentLoaded", () => {
       return;
     }
   }
-  // Show login
   document.getElementById("login-screen").style.display = "flex";
   document.getElementById("app-wrap").style.display = "none";
 });

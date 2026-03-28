@@ -882,3 +882,55 @@ table.dt tr:hover td { background:var(--off); }
   .modal-box { max-width:100%; }
   .login-card { padding:28px 20px 24px; }
 }
+
+/* ═══ SETTINGS PAGE ═══ */
+.settings-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px; }
+
+#units-list { display:flex;flex-direction:column;gap:7px; }
+.unit-row { display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--mist);border-radius:8px;border:1px solid var(--border); }
+.unit-row-name { flex:1;font-size:.82rem;color:var(--ink);font-weight:500; }
+.unit-row-abbr { font-size:.7rem;color:var(--soft);min-width:36px; }
+.unit-row-type { font-size:.62rem; }
+
+/* ═══ HISTORY FILTERS ═══ */
+.history-filters { margin-bottom:14px; }
+.history-summary {
+  display:flex;gap:16px;flex-wrap:wrap;
+  margin-top:12px;padding-top:12px;
+  border-top:1px solid var(--border);
+}
+.hs-item { text-align:center; }
+.hs-n { font-family:var(--ff-display);font-size:1.3rem;font-weight:300;color:var(--amber3);line-height:1; }
+.hs-l { font-size:.6rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--soft); }
+
+/* ═══ UNIT ADJUSTMENT MODAL ═══ */
+.ua-rate-info { font-style:italic; }
+
+/* ═══ CART ITEM WITH UNIT BADGE ═══ */
+.ci-unit-badge {
+  display:inline-flex;align-items:center;gap:3px;
+  background:var(--amber-bg);border:1px solid var(--amber-ring);
+  color:var(--amber3);font-size:.6rem;font-weight:700;
+  padding:1px 6px;border-radius:10px;cursor:pointer;
+  transition:all var(--t);white-space:nowrap;
+}
+.ci-unit-badge:hover { background:var(--amber);color:#fff;border-color:var(--amber); }
+.ci-unit-badge.variable { background:var(--green-bg);border-color:rgba(16,185,129,.3);color:#059669; }
+.ci-unit-badge.variable:hover { background:var(--green);color:#fff;border-color:var(--green); }
+
+/* ═══ USER PILL ═══ */
+.user-pill { display:flex;align-items:center;gap:7px;background:var(--mist);border:1px solid var(--border);padding:5px 12px;border-radius:20px;font-size:.71rem;font-weight:500;color:var(--mid); }
+
+/* ═══ THEME OVERRIDES for off/mist in dark mode ═══ */
+[data-theme="dark"] .op-totals { background:var(--off); }
+[data-theme="dark"] .ot-foot { background:var(--off); }
+[data-theme="dark"] select.fc option { background:var(--ink); color:var(--white); }
+
+[data-theme="light"] select.fc option { background:#fff; color:var(--ink); }
+[data-theme="rose"] select.fc option { background:#fff; color:var(--ink); }
+
+/* Disabled option style */
+select option:disabled { color:var(--soft)!important; font-style:italic; }
+
+/* ═══ OPEN TABS GRID empty ═══ */
+.tabs-empty { grid-column:1/-1;padding:60px;text-align:center;color:var(--soft);font-family:var(--ff-display);font-size:1.1rem;font-style:italic; }
