@@ -1220,10 +1220,43 @@ function renderTables() {
         <button class="tbl-act" onclick="startNewTabForTable('${t.id}')">New Order</button>
         <button class="tbl-act" onclick="setTblStatus('${t.id}','avail')">Free</button>
         <button class="tbl-act" onclick="openTblModal('${t.id}')">Edit</button>
+        <button class="tbl-act tbl-act-del" onclick="delTable('${t.id}')">Delete</button>
       </div>
     </div>`;
     })
     .join("");
+}
+async function delTable(id) {
+  const openTab = DB.tabs.find((tb) => tb.tableId === id);
+  if (openTab) {
+    Swal.fire({
+      title: "Table Has an Open Tab",
+      text: "Close or bill the open order on this table before deleting it.",
+      icon: "warning",
+    });
+    return;
+  }
+  const tbl = DB.tables.find((t) => t.id === id);
+  const ok = await swalConfirm(
+    `Delete "${tbl?.name || "Table"}"?`,
+    "This removes the table permanently. Past orders are not affected.",
+    "Delete Table",
+    "warning",
+  );
+  if (!ok) return;
+  DB.tables = DB.tables.filter((t) => t.id !== id);
+  save("tables");
+  renderTables();
+  syncTableDropdown();
+  /* If the current tab was assigned to this table, clear the assignment */
+  const activeTab = getActiveTab();
+  if (activeTab && activeTab.tableId === id) {
+    activeTab.tableId = "";
+    activeTab.tableName = "Takeaway";
+    save("tabs");
+    document.getElementById("f-table").value = "";
+  }
+  toast(`${tbl?.name || "Table"} deleted`, "info");
 }
 function syncTableDropdown() {
   const sel = document.getElementById("f-table");
@@ -1379,34 +1412,40 @@ function autoSaveTab() {
   renderTabsStrip();
 }
 
-/* Table dropdown change handler — enforce one-tab-per-table */
+/* Table dropdown change handler — enforce one-tab-per-table.
+   If the selected table already has an open tab, immediately load
+   that tab's full order into the panel (no dialog needed). */
 function onTblChange() {
   const chosen = document.getElementById("f-table").value;
+
+  /* Cleared → just save and refresh */
   if (!chosen) {
     saveActiveTab();
     renderTabsStrip();
     return;
   }
-  const clash = DB.tabs.find((tb) => tb.tableId === chosen && tb.id !== TAB_ID);
-  if (clash) {
-    Swal.fire({
-      title: "Table Already Has an Open Tab",
-      html: `<b>${DB.tables.find((t) => t.id === chosen)?.name || "This table"}</b> already has an open tab.<br>Switch to it or choose a different table.`,
-      icon: "info",
-      showCancelButton: true,
-      confirmButtonText: "Switch to That Tab",
-      cancelButtonText: "Keep Current",
-    }).then((r) => {
-      if (r.isConfirmed) {
-        goToTab(clash.id);
-        nav("pos");
-      } else {
-        document.getElementById("f-table").value =
-          getActiveTab()?.tableId || "";
-      }
-    });
+
+  /* Table already has a tab owned by someone ELSE → switch to that tab */
+  const existingTab = DB.tabs.find(
+    (tb) => tb.tableId === chosen && tb.id !== TAB_ID,
+  );
+  if (existingTab) {
+    /* Save whatever is on screen for the current tab first */
+    saveActiveTab();
+    /* Now load the existing table's tab into the panel */
+    TAB_ID = existingTab.id;
+    KOT_PENDING = new Set();
+    loadTabIntoPanel(existingTab);
+    toast(
+      "Switched to " +
+        (DB.tables.find((t) => t.id === chosen)?.name || "table") +
+        " order",
+      "amber",
+    );
     return;
   }
+
+  /* No clash — table is free, assign it to current tab */
   saveActiveTab();
   renderTabsStrip();
   syncTableDropdown();

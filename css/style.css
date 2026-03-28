@@ -934,3 +934,14 @@ select option:disabled { color:var(--soft)!important; font-style:italic; }
 
 /* ═══ OPEN TABS GRID empty ═══ */
 .tabs-empty { grid-column:1/-1;padding:60px;text-align:center;color:var(--soft);font-family:var(--ff-display);font-size:1.1rem;font-style:italic; }
+
+/* ═══ TABLE DELETE ACTION BUTTON ═══ */
+.tbl-act-del {
+  border-color: rgba(239,68,68,.3) !important;
+  color: var(--red) !important;
+}
+.tbl-act-del:hover {
+  border-color: var(--red) !important;
+  color: #fff !important;
+  background: var(--red) !important;
+}
