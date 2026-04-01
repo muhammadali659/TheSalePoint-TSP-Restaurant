@@ -388,6 +388,7 @@ function loadDB() {
     DB.tables = seedTables();
     LS.set("tables", DB.tables);
   }
+  DB.shifts = LS.get("shifts") || [];
   ORDER_NUM = DB.orders.length
     ? Math.max(...DB.orders.map((o) => o.num || 1)) + 1
     : 1;
@@ -486,6 +487,16 @@ function setLoginTheme(t, btn) {
 /* ═══════════════════════════════════
    THEME
 ═══════════════════════════════════ */
+/* Theme definitions for swatches */
+const THEMES = [
+  { id: "dark", name: "Dark", sidebar: "#0A0F1E", main: "#EEF0F7" },
+  { id: "light", name: "Light", sidebar: "#1E293B", main: "#F1F5F9" },
+  { id: "rose", name: "Rose", sidebar: "#1C0B10", main: "#FFF1F3" },
+  { id: "ocean", name: "Ocean", sidebar: "#082534", main: "#EBF5FA" },
+  { id: "forest", name: "Forest", sidebar: "#0A2614", main: "#EDF7EE" },
+  { id: "sunset", name: "Sunset", sidebar: "#2C1006", main: "#FDF3EC" },
+];
+
 function initTheme() {
   applyTheme(LS.get("theme") || "dark");
 }
@@ -502,6 +513,34 @@ function applyTheme(t) {
     .forEach((b) =>
       b.classList.toggle("on", b.getAttribute("data-theme") === t),
     );
+  document
+    .querySelectorAll(".theme-swatch")
+    .forEach((b) =>
+      b.classList.toggle("on", b.getAttribute("data-theme") === t),
+    );
+}
+function renderThemeSwatches() {
+  const container = document.getElementById("theme-swatches");
+  if (!container) return;
+  const active = document.documentElement.getAttribute("data-theme") || "dark";
+  container.innerHTML = THEMES.map(
+    (th) => `
+    <button class="theme-swatch ${th.id === active ? "on" : ""}" data-theme="${th.id}" onclick="applyTheme('${th.id}')">
+      <div class="ts-preview">
+        <div class="ts-sidebar" style="background:${th.sidebar}"></div>
+        <div class="ts-main" style="background:${th.main}"></div>
+      </div>
+      <span class="ts-name">${th.name}</span>
+    </button>`,
+  ).join("");
+  /* Also populate login theme buttons */
+  const loginBtns = document.getElementById("login-theme-btns");
+  if (loginBtns && !loginBtns.children.length) {
+    loginBtns.innerHTML = THEMES.map(
+      (th) =>
+        `<button class="ltheme-btn ${th.id === active ? "on" : ""}" data-theme="${th.id}" onclick="setLoginTheme('${th.id}',this)">${th.name}</button>`,
+    ).join("");
+  }
 }
 
 /* ═══════════════════════════════════
@@ -578,6 +617,7 @@ const PAGE_INFO = {
   master: ["Manage", "Menu items, categories & staff"],
   orders: ["Order History", "All completed transactions"],
   dash: ["Dashboard", "Sales performance & analytics"],
+  shift: ["Shift Report", "Track sales within a shift period"],
   settings: ["Settings", "Billing, currency, units & preferences"],
 };
 function nav(page) {
@@ -614,6 +654,7 @@ function nav(page) {
   } else if (page === "orders") renderHistory();
   else if (page === "dash") renderDash();
   else if (page === "settings") renderSettings();
+  else if (page === "shift") renderShiftPage();
 }
 function swMTab(p, btn) {
   document
@@ -637,19 +678,21 @@ function closeSb() {
    SETTINGS
 ═══════════════════════════════════ */
 function renderSettings() {
-  document.getElementById("s-currency").value = CFG.currency;
-  document.getElementById("s-currency-name").value = CFG.currencyName;
-  document.getElementById("s-service").value = CFG.serviceCharge;
-  document.getElementById("s-tax").value = CFG.tax;
-  document.getElementById("s-disc-type").value = CFG.discType;
-  document.getElementById("s-name").value = CFG.restName;
-  document.getElementById("s-address").value = CFG.restAddress;
-  document.getElementById("s-phone").value = CFG.restPhone;
-  document.getElementById("s-footer").value = CFG.footer;
-  document.getElementById("s-def-pay").value = CFG.defPay;
-  document.getElementById("s-auto-kot").value = CFG.autoKot;
-  document.getElementById("s-rcpt-footer").value = CFG.rcptFooter;
+  const g = (id) => document.getElementById(id);
+  if (g("s-currency")) g("s-currency").value = CFG.currency;
+  if (g("s-currency-name")) g("s-currency-name").value = CFG.currencyName;
+  if (g("s-service")) g("s-service").value = CFG.serviceCharge;
+  if (g("s-tax")) g("s-tax").value = CFG.tax;
+  if (g("s-disc-type")) g("s-disc-type").value = CFG.discType;
+  if (g("s-name")) g("s-name").value = CFG.restName;
+  if (g("s-address")) g("s-address").value = CFG.restAddress;
+  if (g("s-phone")) g("s-phone").value = CFG.restPhone;
+  if (g("s-footer")) g("s-footer").value = CFG.footer;
+  if (g("s-rcpt-footer")) g("s-rcpt-footer").value = CFG.rcptFooter;
+  if (g("s-def-pay")) g("s-def-pay").value = CFG.defPay;
+  if (g("s-auto-kot")) g("s-auto-kot").value = CFG.autoKot;
   renderUnitsList();
+  renderThemeSwatches();
 }
 function saveSettings() {
   CFG.currency = document.getElementById("s-currency").value.trim() || "RS";
@@ -1375,7 +1418,7 @@ function loadTabIntoPanel(tab) {
   syncTableDropdown();
   renderCart();
   syncBadge();
-  renderTabsStrip();
+  //renderTabsStrip();
   updateKotBtn();
 }
 
@@ -1399,7 +1442,7 @@ function saveActiveTab() {
 /* Auto-save called on input changes */
 function autoSaveTab() {
   saveActiveTab();
-  renderTabsStrip();
+  // renderTabsStrip();
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1483,7 +1526,7 @@ function killTab(tabId) {
       loadTabIntoPanel(DB.tabs[DB.tabs.length - 1]);
     } else startNewTab();
   }
-  renderTabsStrip();
+  //renderTabsStrip();
   renderOpenTabs();
 }
 
@@ -1499,8 +1542,8 @@ function renderTabsStrip() {
   n.textContent = cnt;
   pill.style.display = cnt > 0 ? "flex" : "none";
   if (!DB.tabs.length) {
-    area.innerHTML =
-      '<span style="font-size:.69rem;color:rgba(255,255,255,.25);font-style:italic">No open tabs</span>';
+    // area.innerHTML =
+    //   '<span style="font-size:.69rem;color:rgba(255,255,255,.25);font-style:italic">No open tabs</span>';
     return;
   }
   area.innerHTML = DB.tabs
@@ -1702,7 +1745,6 @@ function renderCart() {
   const kotBar = document.getElementById("kot-status-bar");
   if (!items.length) {
     area.innerHTML = `<div class="cart-empty-state"><div class="ces-icon"><svg width="36" height="36" viewBox="0 0 36 36" fill="none"><circle cx="18" cy="18" r="17" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 3"/><path d="M12 24c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="14.5" cy="15.5" r="1.5" fill="currentColor"/><circle cx="21.5" cy="15.5" r="1.5" fill="currentColor"/></svg></div><div class="ces-text">Tap a dish to begin</div></div>`;
-    tots.style.display = "none";
     kotBar.style.display = "none";
     return;
   }
@@ -1746,7 +1788,6 @@ function renderCart() {
     </div>`;
     })
     .join("");
-  tots.style.display = "block";
   recalc();
   const pc = KOT_PENDING.size;
   if (pc > 0) {
@@ -1797,7 +1838,7 @@ function saveTab() {
   }
   saveActiveTab();
   toast("Tab saved", "amber");
-  renderTabsStrip();
+  //renderTabsStrip();
 }
 
 /* ═══════════════════════════════════
@@ -1893,8 +1934,8 @@ function renderOpenTabs() {
   const g = document.getElementById("tabs-grid");
   const open = DB.tabs.filter((t) => t.items.length > 0 || t.guest);
   if (!open.length) {
-    g.innerHTML =
-      '<div class="tabs-empty">No open tabs — all bills settled</div>';
+    // g.innerHTML =
+    //   '<div class="tabs-empty">No open tabs — all bills settled</div>';
     return;
   }
   g.innerHTML = open
@@ -2319,7 +2360,7 @@ function refreshPOS() {
   }
   renderCart();
   syncBadge();
-  renderTabsStrip();
+  //renderTabsStrip();
   updateKotBtn();
 }
 
@@ -2341,6 +2382,213 @@ function tick() {
 /* ═══════════════════════════════════
    INIT
 ═══════════════════════════════════ */
+
+/* ═══════════════════════════════════
+   SHIFT SYSTEM
+   A shift has a start datetime and end datetime.
+   They can span midnight (cross-day shifts).
+   DB.shifts stores historical shifts.
+   CFG.activeShift = { start, end, note } or null.
+═══════════════════════════════════ */
+function renderShiftPage() {
+  const active = CFG.activeShift;
+  const infoEl = document.getElementById("shift-active-info");
+  const endBtn = document.getElementById("end-shift-btn");
+  if (active) {
+    infoEl.style.display = "block";
+    const s = new Date(active.start),
+      e = active.end ? new Date(active.end) : null;
+    const fmt = (d) =>
+      d.toLocaleString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    document.getElementById("shift-active-times").textContent =
+      fmt(s) + (e ? " → " + fmt(e) : " → ongoing");
+    if (endBtn) endBtn.style.display = "inline-flex";
+  } else {
+    infoEl.style.display = "none";
+    if (endBtn) endBtn.style.display = "none";
+  }
+  updateShiftSidebar();
+}
+
+function shiftPreset(type) {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const fmt = (d) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  let s = new Date(now),
+    e = new Date(now);
+  if (type === "morning") {
+    s.setHours(6, 0, 0, 0);
+    e.setHours(14, 0, 0, 0);
+  }
+  if (type === "afternoon") {
+    s.setHours(14, 0, 0, 0);
+    e.setHours(22, 0, 0, 0);
+  }
+  if (type === "night") {
+    s.setHours(22, 0, 0, 0);
+    e = new Date(s);
+    e.setDate(e.getDate() + 1);
+    e.setHours(6, 0, 0, 0);
+  }
+  document.getElementById("sh-start").value = fmt(s);
+  document.getElementById("sh-end").value = fmt(e);
+}
+
+function startShift() {
+  const startVal = document.getElementById("sh-start").value;
+  const endVal = document.getElementById("sh-end").value;
+  if (!startVal) {
+    Swal.fire({
+      title: "Set Start Time",
+      text: "Please enter a shift start time.",
+      icon: "warning",
+    });
+    return;
+  }
+  const startDt = new Date(startVal);
+  const endDt = endVal ? new Date(endVal) : null;
+  if (endDt && endDt <= startDt) {
+    Swal.fire({
+      title: "Invalid Times",
+      text: "End time must be after start time.",
+      icon: "warning",
+    });
+    return;
+  }
+  CFG.activeShift = {
+    start: startDt.toISOString(),
+    end: endDt ? endDt.toISOString() : null,
+  };
+  saveCFG();
+  renderShiftPage();
+  toast("Shift started", "ok");
+  generateShiftReport();
+}
+
+function endShift() {
+  if (!CFG.activeShift) return;
+  const now = new Date().toISOString();
+  // Save to history
+  const shiftRecord = { ...CFG.activeShift, end: now, closedAt: now };
+  if (!DB.shifts) DB.shifts = [];
+  DB.shifts.push(shiftRecord);
+  LS.set("shifts", DB.shifts);
+  CFG.activeShift = null;
+  saveCFG();
+  renderShiftPage();
+  toast("Shift ended", "info");
+}
+
+function generateShiftReport() {
+  const area = document.getElementById("shift-report-area");
+  if (!area) return;
+  const startVal = document.getElementById("sh-start").value;
+  const endVal = document.getElementById("sh-end").value;
+  if (!startVal) {
+    area.innerHTML =
+      '<div style="color:var(--soft);padding:20px;font-style:italic">Set shift times above and click Generate Report.</div>';
+    return;
+  }
+  const shiftStart = new Date(startVal);
+  const shiftEnd = endVal
+    ? new Date(endVal)
+    : new Date(); /* if no end, use now */
+  /* Filter orders within shift window — handles cross-midnight correctly */
+  const shiftOrders = DB.orders.filter((o) => {
+    const t = new Date(o.createdAt);
+    return t >= shiftStart && t <= shiftEnd;
+  });
+  const totalRev = shiftOrders.reduce((s, o) => s + o.total, 0);
+  const totalItems = shiftOrders.reduce(
+    (s, o) => s + o.items.reduce((a, i) => a + i.qty, 0),
+    0,
+  );
+  const avgOrder = shiftOrders.length ? totalRev / shiftOrders.length : 0;
+  /* Payment breakdown */
+  const payBreak = {};
+  shiftOrders.forEach((o) => {
+    payBreak[o.payMethod] = (payBreak[o.payMethod] || 0) + o.total;
+  });
+  const payRows = Object.entries(payBreak)
+    .map(
+      ([m, a]) =>
+        `<div style="display:flex;justify-content:space-between;font-size:.77rem;padding:3px 0"><span>${m}</span><span style="font-weight:600">${cur()} ${a.toFixed(0)}</span></div>`,
+    )
+    .join("");
+  const fmt = (d) =>
+    d.toLocaleString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  const crossMidnight = shiftEnd.getDate() !== shiftStart.getDate();
+  const orderRows =
+    shiftOrders.length === 0
+      ? '<div class="shift-no-orders">No orders in this shift window</div>'
+      : shiftOrders
+          .map((o) => {
+            const d = new Date(o.createdAt);
+            return `<div class="shift-order-row">
+          <div class="sho-num">#${o.num}</div>
+          <div class="sho-body">
+            <div class="sho-guest">${o.guest}</div>
+            <div class="sho-meta">${o.tableName} · ${o.staffName || "—"} · ${o.payMethod}</div>
+          </div>
+          <div>
+            <div class="sho-total">${cur()} ${o.total.toFixed(0)}</div>
+            <div class="sho-time">${d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</div>
+          </div>
+        </div>`;
+          })
+          .join("");
+  area.innerHTML = `<div class="shift-report-card">
+    <div class="shift-report-header">
+      <div class="shift-report-title">Shift Report</div>
+      <div class="shift-report-period">${fmt(shiftStart)} → ${fmt(shiftEnd)}${crossMidnight ? ' <span style="opacity:.6">(cross-midnight)</span>' : ""}</div>
+    </div>
+    <div class="shift-stats">
+      <div class="shift-stat"><div class="shift-stat-n">${cur()} ${totalRev.toFixed(0)}</div><div class="shift-stat-l">Revenue</div></div>
+      <div class="shift-stat"><div class="shift-stat-n">${shiftOrders.length}</div><div class="shift-stat-l">Orders</div></div>
+      <div class="shift-stat"><div class="shift-stat-n">${cur()} ${avgOrder.toFixed(0)}</div><div class="shift-stat-l">Avg Order</div></div>
+      <div class="shift-stat"><div class="shift-stat-n">${Math.round(totalItems)}</div><div class="shift-stat-l">Items Sold</div></div>
+    </div>
+    <div style="padding:12px 18px;border-bottom:1px solid var(--border)">
+      <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--soft);margin-bottom:8px">Payment Breakdown</div>
+      ${payRows || '<div style="font-size:.75rem;color:var(--soft);font-style:italic">No payments recorded</div>'}
+    </div>
+    <div style="padding:10px 16px 6px;border-bottom:1px solid var(--border)">
+      <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--soft);margin-bottom:2px">Orders (${shiftOrders.length})</div>
+    </div>
+    <div class="shift-orders-list">${orderRows}</div>
+  </div>`;
+}
+
+function updateShiftSidebar() {
+  const dot = document.getElementById("shift-dot");
+  const label = document.getElementById("shift-label");
+  if (!dot || !label) return;
+  const active = CFG.activeShift;
+  if (active) {
+    dot.className = "shift-dot on";
+    const s = new Date(active.start);
+    label.textContent =
+      "Shift: " +
+      s.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  } else {
+    dot.className = "shift-dot";
+    label.textContent = "No active shift";
+  }
+}
+
 function initApp() {
   loadDB();
   tick();
@@ -2355,6 +2603,8 @@ function initApp() {
   }
   refreshPOS();
   renderDash();
+  updateShiftSidebar();
+  renderThemeSwatches();
 }
 
 window.addEventListener("DOMContentLoaded", () => {

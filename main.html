@@ -83,6 +83,8 @@
         </div>
         <div class="sb-section">
           <div class="sb-label">Reports</div>
+          <button class="nav-item" onclick="nav('shift')"><span class="nav-icon">⏱</span><span>Shift
+              Report</span></button>
           <button class="nav-item" onclick="nav('orders')"><span class="nav-icon">📜</span><span>History</span></button>
           <button class="nav-item" onclick="nav('dash')"><span class="nav-icon">📊</span><span>Dashboard</span></button>
         </div>
@@ -100,6 +102,10 @@
             <button class="theme-btn" data-theme="light" onclick="applyTheme('light')">Light</button>
             <button class="theme-btn" data-theme="rose" onclick="applyTheme('rose')">Rose</button>
           </div>
+        </div>
+        <div class="shift-status-bar" id="shift-status-bar" onclick="nav('shift')" title="View shift report">
+          <span class="shift-dot" id="shift-dot"></span>
+          <span class="shift-label" id="shift-label">No active shift</span>
         </div>
         <button class="logout-btn" onclick="doLogout()"><span>🚪</span> Sign Out</button>
       </div>
@@ -136,89 +142,90 @@
               <div class="cat-bar" id="cat-bar"></div>
               <div class="menu-grid" id="menu-grid"></div>
             </div>
-            <div>
-              <div class="order-panel">
-                <!-- table tabs strip -->
-                <div class="tabs-strip">
-                  <div class="tabs-strip-label">Open Tabs — Click to Switch</div>
-                  <div class="tabs-strip-chips" id="tabs-chips">
-                    <span style="font-size:.69rem;color:rgba(255,255,255,.25);font-style:italic">No open tabs</span>
-                  </div>
+            <!-- ORDER COLUMN: tabs + meta + cart (grows) + billing (bottom fixed) -->
+            <div class="order-col">
+              <!-- Tabs strip -->
+              <div class="tabs-strip">
+                <div class="tabs-strip-label">Open Tabs — Click to Switch</div>
+                <div class="tabs-strip-chips" id="tabs-chips">
+                  <span style="font-size:.67rem;color:rgba(255,255,255,.22);font-style:italic">No open tabs</span>
                 </div>
-                <!-- order head -->
-                <div class="op-head">
-                  <div>
-                    <div class="op-title">Current Order</div>
-                    <div class="op-ref" id="op-ref">New tab</div>
-                  </div>
-                  <div style="display:flex;gap:5px">
-                    <button class="btn btn-sm btn-kot" id="kot-btn" onclick="printKOT()">🖨 KOT</button>
-                    <button class="btn btn-sm btn-ghost" onclick="clearOrder()">Clear</button>
-                  </div>
+              </div>
+              <!-- Order head -->
+              <div class="op-head">
+                <div>
+                  <div class="op-title">Current Order</div>
+                  <div class="op-ref" id="op-ref">New tab</div>
                 </div>
-                <!-- meta -->
-                <div class="op-meta">
-                  <div class="op-meta-row">
-                    <div class="fg"><label class="fl">Customer</label><input class="fc" id="f-guest" placeholder="Name…"
-                        oninput="autoSaveTab()" /></div>
-                    <div class="fg"><label class="fl">Table</label><select class="fc" id="f-table"
-                        onchange="onTblChange()">
-                        <option value="">Takeaway</option>
-                      </select></div>
-                  </div>
-                  <div class="fg"><label class="fl">Server</label><select class="fc" id="f-server"
-                      onchange="autoSaveTab()">
-                      <option value="">Unassigned</option>
+                <div style="display:flex;gap:5px">
+                  <button class="btn btn-sm btn-kot" id="kot-btn" onclick="printKOT()">🖨 KOT</button>
+                  <button class="btn btn-sm btn-ghost" onclick="clearOrder()">Clear</button>
+                </div>
+              </div>
+              <!-- Meta -->
+              <div class="op-meta">
+                <div class="op-meta-row">
+                  <div class="fg"><label class="fl">Customer</label><input class="fc" id="f-guest" placeholder="Name…"
+                      oninput="autoSaveTab()" /></div>
+                  <div class="fg"><label class="fl">Table</label><select class="fc" id="f-table"
+                      onchange="onTblChange()">
+                      <option value="">Takeaway</option>
                     </select></div>
                 </div>
-                <!-- KOT badge -->
-                <div class="kot-status-bar" id="kot-status-bar" style="display:none">
-                  <span class="kot-pending-badge" id="kot-pending-n">0 new items</span>
-                  <span class="kot-status-txt">— Ready to KOT</span>
+                <div class="fg" style="margin-bottom:0"><label class="fl">Server</label><select class="fc" id="f-server"
+                    onchange="autoSaveTab()">
+                    <option value="">Unassigned</option>
+                  </select></div>
+              </div>
+              <!-- KOT badge -->
+              <div class="kot-status-bar" id="kot-status-bar" style="display:none">
+                <span class="kot-pending-badge" id="kot-pending-n">0 new</span>
+                <span class="kot-status-txt">items pending KOT</span>
+              </div>
+              <!-- CART — fills available space -->
+              <div class="op-cart" id="cart-area">
+                <div class="cart-empty-state">
+                  <div class="ces-icon"><svg width="38" height="38" viewBox="0 0 38 38" fill="none">
+                      <circle cx="19" cy="19" r="17.5" stroke="currentColor" stroke-width="1.2"
+                        stroke-dasharray="3.5 3" />
+                      <path d="M13 25.5c0-3.6 2.7-6.5 6-6.5s6 2.9 6 6.5" stroke="currentColor" stroke-width="1.2"
+                        stroke-linecap="round" />
+                      <circle cx="15.5" cy="16" r="1.6" fill="currentColor" />
+                      <circle cx="22.5" cy="16" r="1.6" fill="currentColor" />
+                    </svg></div>
+                  <div class="ces-text">Tap a dish to begin</div>
                 </div>
-                <!-- cart -->
-                <div class="op-cart" id="cart-area">
-                  <div class="cart-empty-state">
-                    <div class="ces-icon"><svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-                        <circle cx="18" cy="18" r="17" stroke="currentColor" stroke-width="1.2"
-                          stroke-dasharray="3 3" />
-                        <path d="M12 24c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.2"
-                          stroke-linecap="round" />
-                        <circle cx="14.5" cy="15.5" r="1.5" fill="currentColor" />
-                        <circle cx="21.5" cy="15.5" r="1.5" fill="currentColor" />
-                      </svg></div>
-                    <div class="ces-text">Tap a dish to begin</div>
-                  </div>
-                </div>
-                <!-- totals -->
+              </div>
+              <!-- BILLING SECTION — bottom of order column -->
+              <div class="op-billing">
+                <!-- Totals -->
                 <div class="op-totals" id="op-totals">
                   <div class="t-row"><span class="t-lbl">Subtotal</span><span class="t-val" id="t-sub">0.00</span></div>
                   <div class="t-row disc" id="t-disc-row" style="display:none"><span class="t-lbl">Discount</span><span
                       class="t-val" id="t-disc">—</span></div>
-                  <div class="t-row" id="t-svc-row"><span class="t-lbl" id="t-svc-lbl">Service (0%)</span><span
-                      class="t-val" id="t-svc">0.00</span></div>
+                  <div class="t-row"><span class="t-lbl" id="t-svc-lbl">Service (0%)</span><span class="t-val"
+                      id="t-svc">0.00</span></div>
                   <div class="t-row grand"><span class="t-lbl">Total</span><span class="t-val" id="t-total">0.00</span>
                   </div>
                 </div>
-                <!-- pay -->
-                <div class="op-pay">
+                <!-- Payment + Discount + Notes in one compact row -->
+                <div class="billing-controls">
                   <div class="pay-lbl">Payment Method</div>
                   <div class="pay-row">
                     <button class="pay-btn on" data-pay="Cash" onclick="selPay(this)">💵 Cash</button>
                     <button class="pay-btn" data-pay="Card" onclick="selPay(this)">💳 Card</button>
                     <button class="pay-btn" data-pay="QR" onclick="selPay(this)">📱 QR</button>
                   </div>
-                  <div class="disc-row-inputs">
+                  <div class="disc-note-row">
                     <input class="fc" type="number" id="f-disc" placeholder="Discount" min="0" step="0.01"
                       oninput="recalc()" />
-                    <textarea class="fc" id="f-note" rows="2" placeholder="Notes…" style="resize:none;font-size:.78rem;"
-                      oninput="autoSaveTab()"></textarea>
+                    <input class="fc" type="text" id="f-note" placeholder="Notes…" oninput="autoSaveTab()" />
                   </div>
-                  <div class="action-row">
-                    <button class="btn btn-ghost btn-block" style="flex:.8" onclick="saveTab()">💾 Save Tab</button>
-                    <button class="btn btn-amber btn-xl btn-block" style="flex:1" onclick="confirmOrder()">Bill &amp;
-                      Close</button>
-                  </div>
+                </div>
+                <!-- Actions -->
+                <div class="action-row">
+                  <button class="btn btn-ghost btn-block" onclick="saveTab()">💾 Save Tab</button>
+                  <button class="btn btn-amber btn-xl btn-block" onclick="confirmOrder()">Bill &amp; Close</button>
                 </div>
               </div>
             </div>
@@ -405,47 +412,87 @@
           </div>
         </section>
 
+        <!-- ═══ SHIFT REPORT ═══ -->
+        <section class="pg" id="pg-shift">
+          <div class="shift-layout">
+            <div class="card shift-control-card">
+              <div class="card-head">
+                <h3 class="card-title">⏱ Shift Management</h3>
+              </div>
+              <div class="card-body">
+                <div id="shift-active-info" style="display:none" class="shift-active-banner">
+                  <div class="shift-active-label">🟢 Shift Active</div>
+                  <div class="shift-active-times" id="shift-active-times"></div>
+                </div>
+                <div class="fg2">
+                  <div class="fg"><label class="fl">Shift Start</label><input class="fc" type="datetime-local"
+                      id="sh-start" /></div>
+                  <div class="fg"><label class="fl">Shift End</label><input class="fc" type="datetime-local"
+                      id="sh-end" /></div>
+                </div>
+                <div style="font-size:.68rem;color:var(--soft);margin-bottom:12px;line-height:1.7">
+                  ℹ Cross-midnight shifts are fully supported. E.g. 8 PM Mar 31 → 8 AM Apr 1. End time can be any date
+                  after start.
+                </div>
+                <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px">
+                  <button class="btn btn-ghost btn-sm" onclick="shiftPreset('morning')">☀ Morning (6am–2pm)</button>
+                  <button class="btn btn-ghost btn-sm" onclick="shiftPreset('afternoon')">🌤 Afternoon
+                    (2pm–10pm)</button>
+                  <button class="btn btn-ghost btn-sm" onclick="shiftPreset('night')">🌙 Night (10pm–6am)</button>
+                </div>
+                <div style="display:flex;gap:7px;flex-wrap:wrap">
+                  <button class="btn btn-amber" onclick="startShift()">▶ Start Shift</button>
+                  <button class="btn btn-outline" onclick="generateShiftReport()">📊 Generate Report</button>
+                  <button class="btn btn-red btn-sm" id="end-shift-btn" onclick="endShift()" style="display:none">■ End
+                    Shift</button>
+                </div>
+              </div>
+            </div>
+            <div id="shift-report-area"></div>
+          </div>
+        </section>
+
         <!-- ═══ SETTINGS ═══ -->
         <section class="pg" id="pg-settings">
           <div class="settings-grid">
-
-            <!-- Billing Settings -->
+            <!-- Theme Picker -->
+            <div class="card settings-theme-card">
+              <div class="card-head">
+                <h3 class="card-title">🎨 Theme</h3>
+              </div>
+              <div class="card-body">
+                <div class="theme-swatches" id="theme-swatches"></div>
+                <div style="font-size:.68rem;color:var(--soft);margin-top:10px">Click a theme to apply instantly. Your
+                  preference is saved automatically.</div>
+              </div>
+            </div>
+            <!-- Billing -->
             <div class="card">
               <div class="card-head">
                 <h3 class="card-title">💰 Billing & Currency</h3>
               </div>
               <div class="card-body">
-                <div class="fg">
-                  <label class="fl">Currency Symbol</label>
-                  <input class="fc" id="s-currency" placeholder="e.g. RS, $, £, ₹" maxlength="6" />
-                  <div style="font-size:.67rem;color:var(--soft);margin-top:4px">Displayed before all prices</div>
+                <div class="fg2">
+                  <div class="fg"><label class="fl">Currency Symbol</label><input class="fc" id="s-currency"
+                      placeholder="RS, $, £, ₹" maxlength="6" />
+                    <div style="font-size:.64rem;color:var(--soft);margin-top:3px">Shown before all prices</div>
+                  </div>
+                  <div class="fg"><label class="fl">Currency Name</label><input class="fc" id="s-currency-name"
+                      placeholder="Pakistani Rupee" /></div>
                 </div>
-                <div class="fg">
-                  <label class="fl">Currency Name</label>
-                  <input class="fc" id="s-currency-name" placeholder="e.g. Pakistani Rupee, Dollar" />
+                <div class="fg2">
+                  <div class="fg"><label class="fl">Service Charge %</label><input class="fc" type="number"
+                      id="s-service" placeholder="0" min="0" max="100" step="0.1" /></div>
+                  <div class="fg"><label class="fl">Tax %</label><input class="fc" type="number" id="s-tax"
+                      placeholder="0" min="0" max="100" step="0.1" /></div>
                 </div>
-                <div class="fg">
-                  <label class="fl">Service Charge (%)</label>
-                  <input class="fc" type="number" id="s-service" placeholder="0" min="0" max="100" step="0.1" />
-                  <div style="font-size:.67rem;color:var(--soft);margin-top:4px">Applied to every order total (0 =
-                    disabled)</div>
-                </div>
-                <div class="fg">
-                  <label class="fl">Tax (%)</label>
-                  <input class="fc" type="number" id="s-tax" placeholder="0" min="0" max="100" step="0.1" />
-                  <div style="font-size:.67rem;color:var(--soft);margin-top:4px">Tax applied after service charge</div>
-                </div>
-                <div class="fg">
-                  <label class="fl">Discount Type</label>
-                  <select class="fc" id="s-disc-type">
+                <div class="fg"><label class="fl">Discount Type</label><select class="fc" id="s-disc-type">
                     <option value="flat">Flat Amount</option>
-                    <option value="pct">Percentage (%)</option>
-                  </select>
-                </div>
+                    <option value="pct">Percentage %</option>
+                  </select></div>
                 <button class="btn btn-amber" onclick="saveSettings()">Save Billing Settings</button>
               </div>
             </div>
-
             <!-- Restaurant Info -->
             <div class="card">
               <div class="card-head">
@@ -458,75 +505,59 @@
                     style="resize:none" placeholder="Street, City"></textarea></div>
                 <div class="fg"><label class="fl">Phone</label><input class="fc" id="s-phone"
                     placeholder="+92 300 0000000" /></div>
-                <div class="fg"><label class="fl">Footer Message on Receipt</label><input class="fc" id="s-footer"
-                    placeholder="Thank you for dining with us!" /></div>
+                <div class="fg"><label class="fl">Receipt Footer Message</label><input class="fc" id="s-rcpt-footer"
+                    placeholder="Thank you! Visit again." /></div>
                 <button class="btn btn-amber" onclick="saveSettings()">Save Restaurant Info</button>
               </div>
             </div>
-
-            <!-- Units Management -->
+            <!-- Units -->
             <div class="card">
               <div class="card-head">
-                <h3 class="card-title">📐 Units of Measure</h3>
-                <button class="btn btn-amber btn-sm" onclick="addUnit()">+ Add Unit</button>
+                <h3 class="card-title">📐 Units of Measure</h3><button class="btn btn-amber btn-sm"
+                  onclick="openUnitModal(null)">+ Add Unit</button>
               </div>
               <div class="card-body">
-                <div style="font-size:.75rem;color:var(--soft);margin-bottom:12px;line-height:1.6">
-                  Units marked as <span class="badge b-amber" style="font-size:.58rem">Weight/Volume</span> enable the
-                  price-qty adjustment feature in orders.
-                </div>
+                <div style="font-size:.72rem;color:var(--soft);margin-bottom:10px;line-height:1.6">Units marked <span
+                    class="badge b-green" style="font-size:.58rem">Weight/Vol</span> enable price↔qty adjustment in
+                  orders.</div>
                 <div id="units-list"></div>
               </div>
             </div>
-
-            <!-- POS Preferences -->
+            <!-- POS Prefs -->
             <div class="card">
               <div class="card-head">
                 <h3 class="card-title">⚙️ POS Preferences</h3>
               </div>
               <div class="card-body">
-                <div class="fg">
-                  <label class="fl">Default Payment</label>
-                  <select class="fc" id="s-def-pay">
+                <div class="fg"><label class="fl">Default Payment Method</label><select class="fc" id="s-def-pay">
                     <option value="Cash">Cash</option>
                     <option value="Card">Card</option>
                     <option value="QR">QR Code</option>
-                  </select>
-                </div>
-                <div class="fg">
-                  <label class="fl">Auto-print KOT on Item Add</label>
-                  <select class="fc" id="s-auto-kot">
+                  </select></div>
+                <div class="fg"><label class="fl">Auto-print KOT on Item Add</label><select class="fc" id="s-auto-kot">
                     <option value="no">No — Manual KOT Print</option>
                     <option value="yes">Yes — Auto on Each Add</option>
-                  </select>
-                </div>
-                <div class="fg">
-                  <label class="fl">Receipt Footer Line</label>
-                  <input class="fc" id="s-rcpt-footer" placeholder="Thank you! Visit again." />
-                </div>
+                  </select></div>
                 <button class="btn btn-amber" onclick="saveSettings()">Save Preferences</button>
               </div>
             </div>
-
-            <!-- Data Management -->
+            <!-- Data -->
             <div class="card">
               <div class="card-head">
                 <h3 class="card-title">🗄️ Data Management</h3>
               </div>
-              <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
-                <div style="font-size:.75rem;color:var(--soft);line-height:1.6;margin-bottom:4px">Export or reset system
-                  data. All data is stored locally in this browser.</div>
+              <div class="card-body" style="display:flex;flex-direction:column;gap:9px">
+                <div style="font-size:.72rem;color:var(--soft);line-height:1.6">All data is stored in this browser.
+                  Export a backup regularly.</div>
                 <button class="btn btn-outline" onclick="exportData()">📤 Export All Data (JSON)</button>
                 <button class="btn btn-outline" onclick="importDataClick()">📥 Import Data (JSON)</button>
                 <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)" />
-                <hr style="border:none;border-top:1px solid var(--border);margin:4px 0" />
+                <hr style="border:none;border-top:1px solid var(--border)" />
                 <button class="btn btn-red" onclick="resetAllData()">⚠️ Reset All Data</button>
               </div>
             </div>
-
           </div>
         </section>
-
       </main>
     </div>
 
