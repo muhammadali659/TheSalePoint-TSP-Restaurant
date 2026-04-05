@@ -134,15 +134,44 @@
         <!-- ═══ POS ═══ -->
         <section class="pg on" id="pg-pos">
           <div class="pos-layout">
-            <div>
+
+            <!-- LEFT COLUMN: search + categories + menu grid + (payment/discount/notes at bottom) -->
+            <div class="menu-col">
               <div class="search-wrap">
                 <span class="search-icon">⌕</span>
                 <input class="fc" id="menu-q" placeholder="Search dishes…" oninput="renderMenu()" />
               </div>
               <div class="cat-bar" id="cat-bar"></div>
+              <!-- Menu grid — scrollable, fills space -->
               <div class="menu-grid" id="menu-grid"></div>
+              <!-- PAYMENT / DISCOUNT / NOTES — below the menu grid (area "2") -->
+              <div class="menu-billing-panel">
+                <div class="mbp-inner">
+                  <div class="mbp-pay-section">
+                    <div class="pay-lbl">Payment Method</div>
+                    <div class="pay-row">
+                      <button class="pay-btn on" data-pay="Cash" onclick="selPay(this)">💵 Cash</button>
+                      <button class="pay-btn" data-pay="Card" onclick="selPay(this)">💳 Card</button>
+                      <button class="pay-btn" data-pay="QR" onclick="selPay(this)">📱 QR</button>
+                    </div>
+                  </div>
+                  <div class="mbp-fields-section">
+                    <div class="fg" style="margin-bottom:0">
+                      <label class="fl">Discount</label>
+                      <input class="fc" type="number" id="f-disc" placeholder="0" min="0" step="0.01"
+                        oninput="recalc()" />
+                    </div>
+                    <div class="fg" style="margin-bottom:0">
+                      <label class="fl">Notes</label>
+                      <input class="fc" type="text" id="f-note" placeholder="Special instructions…"
+                        oninput="autoSaveTab()" />
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <!-- ORDER COLUMN: tabs + meta + cart (grows) + billing (bottom fixed) -->
+
+            <!-- RIGHT COLUMN: tabs + order head + meta + cart (grows) + totals + actions -->
             <div class="order-col">
               <!-- Tabs strip -->
               <div class="tabs-strip">
@@ -182,7 +211,7 @@
                 <span class="kot-pending-badge" id="kot-pending-n">0 new</span>
                 <span class="kot-status-txt">items pending KOT</span>
               </div>
-              <!-- CART — fills available space -->
+              <!-- CART — grows to fill remaining height -->
               <div class="op-cart" id="cart-area">
                 <div class="cart-empty-state">
                   <div class="ces-icon"><svg width="38" height="38" viewBox="0 0 38 38" fill="none">
@@ -196,9 +225,8 @@
                   <div class="ces-text">Tap a dish to begin</div>
                 </div>
               </div>
-              <!-- BILLING SECTION — bottom of order column -->
+              <!-- TOTALS + ACTIONS at bottom of order column -->
               <div class="op-billing">
-                <!-- Totals -->
                 <div class="op-totals" id="op-totals">
                   <div class="t-row"><span class="t-lbl">Subtotal</span><span class="t-val" id="t-sub">0.00</span></div>
                   <div class="t-row disc" id="t-disc-row" style="display:none"><span class="t-lbl">Discount</span><span
@@ -208,27 +236,13 @@
                   <div class="t-row grand"><span class="t-lbl">Total</span><span class="t-val" id="t-total">0.00</span>
                   </div>
                 </div>
-                <!-- Payment + Discount + Notes in one compact row -->
-                <div class="billing-controls">
-                  <div class="pay-lbl">Payment Method</div>
-                  <div class="pay-row">
-                    <button class="pay-btn on" data-pay="Cash" onclick="selPay(this)">💵 Cash</button>
-                    <button class="pay-btn" data-pay="Card" onclick="selPay(this)">💳 Card</button>
-                    <button class="pay-btn" data-pay="QR" onclick="selPay(this)">📱 QR</button>
-                  </div>
-                  <div class="disc-note-row">
-                    <input class="fc" type="number" id="f-disc" placeholder="Discount" min="0" step="0.01"
-                      oninput="recalc()" />
-                    <input class="fc" type="text" id="f-note" placeholder="Notes…" oninput="autoSaveTab()" />
-                  </div>
-                </div>
-                <!-- Actions -->
                 <div class="action-row">
                   <button class="btn btn-ghost btn-block" onclick="saveTab()">💾 Save Tab</button>
                   <button class="btn btn-amber btn-xl btn-block" onclick="confirmOrder()">Bill &amp; Close</button>
                 </div>
               </div>
             </div>
+
           </div>
         </section>
 
@@ -350,6 +364,164 @@
             </div>
           </div>
         </section>
+
+        <!-- ═══ ORDER HISTORY ═══ -->
+        <section class="pg" id="pg-orders">
+          <div class="history-filters card" style="padding:14px 16px;margin-bottom:14px">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:160px">
+                <span class="search-icon" style="position:static;transform:none;color:var(--soft)">⌕</span>
+                <input class="fc" id="q-orders" placeholder="Search guest / order #…" oninput="renderHistory()"
+                  style="margin:0" />
+              </div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <label class="fl" style="margin:0;white-space:nowrap">From</label>
+                <input class="fc" type="date" id="h-from" onchange="renderHistory()" style="width:140px" />
+              </div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <label class="fl" style="margin:0;white-space:nowrap">To</label>
+                <input class="fc" type="date" id="h-to" onchange="renderHistory()" style="width:140px" />
+              </div>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-ghost btn-sm" onclick="setDatePreset('today')">Today</button>
+                <button class="btn btn-ghost btn-sm" onclick="setDatePreset('week')">This Week</button>
+                <button class="btn btn-ghost btn-sm" onclick="setDatePreset('month')">This Month</button>
+                <button class="btn btn-ghost btn-sm" onclick="setDatePreset('all')">All</button>
+              </div>
+              <button class="btn btn-red btn-sm" onclick="clearHistory()">Clear All</button>
+            </div>
+            <div class="history-summary" id="history-summary"></div>
+          </div>
+          <div id="history-feed"></div>
+        </section>
+
+        <!-- ═══ DASHBOARD ═══ -->
+        <section class="pg" id="pg-dash">
+          <div class="stats-row" id="dash-stats"></div>
+          <div class="dash-grid">
+            <div class="card">
+              <div class="card-head">
+                <h3 class="card-title">Today's Service</h3><span class="badge b-amber" id="dash-today-n">0</span>
+              </div>
+              <div class="card-body" id="dash-today"></div>
+            </div>
+            <div class="card">
+              <div class="card-head">
+                <h3 class="card-title">Top Dishes</h3>
+              </div>
+              <div class="card-body" id="dash-top"></div>
+            </div>
+            <div class="card">
+              <div class="card-head">
+                <h3 class="card-title">Revenue by Category</h3>
+              </div>
+              <div class="card-body" id="dash-cats"></div>
+            </div>
+            <div class="card">
+              <div class="card-head">
+                <h3 class="card-title">Server Performance</h3>
+              </div>
+              <div class="card-body" id="dash-staff"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══ SHIFT REPORT ═══ -->
+        <section class="pg" id="pg-shift">
+
+          <!-- TOP STATUS BAR -->
+          <div class="shift-status-hero" id="shift-hero">
+            <div class="ssh-left">
+              <div class="ssh-indicator" id="ssh-indicator">
+                <span class="ssh-dot" id="ssh-dot"></span>
+                <span class="ssh-status-txt" id="ssh-status-txt">No Active Shift</span>
+              </div>
+              <div class="ssh-times" id="ssh-times"></div>
+            </div>
+            <div class="ssh-actions" id="ssh-actions"></div>
+          </div>
+
+          <div class="shift-main-grid">
+
+            <!-- LEFT: Controls -->
+            <div class="shift-controls-col">
+
+              <!-- Start / Configure Shift -->
+              <div class="card">
+                <div class="card-head">
+                  <h3 class="card-title">⏱ Configure Shift</h3>
+                </div>
+                <div class="card-body">
+                  <div class="shift-presets-row">
+                    <div class="shift-presets-label">Quick Presets</div>
+                    <div class="shift-preset-btns">
+                      <button class="shift-preset-btn" onclick="shiftPreset('morning')">
+                        <span class="spb-icon">☀️</span>
+                        <span class="spb-name">Morning</span>
+                        <span class="spb-time">6 AM – 2 PM</span>
+                      </button>
+                      <button class="shift-preset-btn" onclick="shiftPreset('afternoon')">
+                        <span class="spb-icon">🌤️</span>
+                        <span class="spb-name">Afternoon</span>
+                        <span class="spb-time">2 PM – 10 PM</span>
+                      </button>
+                      <button class="shift-preset-btn" onclick="shiftPreset('night')">
+                        <span class="spb-icon">🌙</span>
+                        <span class="spb-name">Night</span>
+                        <span class="spb-time">10 PM – 6 AM</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="shift-divider"><span>or set custom times</span></div>
+                  <div class="fg2">
+                    <div class="fg">
+                      <label class="fl">Shift Start</label>
+                      <input class="fc" type="datetime-local" id="sh-start" onchange="onShiftTimeChange()" />
+                    </div>
+                    <div class="fg">
+                      <label class="fl">Shift End</label>
+                      <input class="fc" type="datetime-local" id="sh-end" onchange="onShiftTimeChange()" />
+                    </div>
+                  </div>
+                  <div class="shift-duration-preview" id="shift-duration-preview"></div>
+                  <div class="shift-cross-midnight-note" id="shift-cross-note" style="display:none">
+                    🌙 Cross-midnight shift — spans two dates
+                  </div>
+                  <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+                    <button class="btn btn-amber" id="start-shift-btn" onclick="startShift()">▶ Start Shift</button>
+                    <button class="btn btn-outline" onclick="generateShiftReport()">📊 View Report</button>
+                    <button class="btn btn-red btn-sm" id="end-shift-btn" onclick="endShift()" style="display:none">■
+                      End Shift</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Past Shifts -->
+              <div class="card" style="margin-top:12px">
+                <div class="card-head">
+                  <h3 class="card-title">📋 Shift History</h3>
+                </div>
+                <div id="past-shifts-list" style="max-height:280px;overflow-y:auto">
+                  <div class="shift-no-orders">No past shifts recorded</div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- RIGHT: Report Output -->
+            <div class="shift-report-col">
+              <div id="shift-report-area">
+                <div class="shift-report-empty">
+                  <div class="sre-icon">📊</div>
+                  <div class="sre-title">No Report Generated</div>
+                  <div class="sre-sub">Configure shift times on the left and click View Report</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
 
         <!-- ═══ ORDER HISTORY ═══ -->
         <section class="pg" id="pg-orders">

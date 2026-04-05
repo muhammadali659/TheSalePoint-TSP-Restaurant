@@ -1418,7 +1418,7 @@ function loadTabIntoPanel(tab) {
   syncTableDropdown();
   renderCart();
   syncBadge();
-  //renderTabsStrip();
+  renderTabsStrip();
   updateKotBtn();
 }
 
@@ -1442,7 +1442,7 @@ function saveActiveTab() {
 /* Auto-save called on input changes */
 function autoSaveTab() {
   saveActiveTab();
-  // renderTabsStrip();
+  renderTabsStrip();
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1526,7 +1526,7 @@ function killTab(tabId) {
       loadTabIntoPanel(DB.tabs[DB.tabs.length - 1]);
     } else startNewTab();
   }
-  //renderTabsStrip();
+  renderTabsStrip();
   renderOpenTabs();
 }
 
@@ -1542,8 +1542,8 @@ function renderTabsStrip() {
   n.textContent = cnt;
   pill.style.display = cnt > 0 ? "flex" : "none";
   if (!DB.tabs.length) {
-    // area.innerHTML =
-    //   '<span style="font-size:.69rem;color:rgba(255,255,255,.25);font-style:italic">No open tabs</span>';
+    area.innerHTML =
+      '<span style="font-size:.69rem;color:rgba(255,255,255,.25);font-style:italic">No open tabs</span>';
     return;
   }
   area.innerHTML = DB.tabs
@@ -1838,7 +1838,7 @@ function saveTab() {
   }
   saveActiveTab();
   toast("Tab saved", "amber");
-  //renderTabsStrip();
+  renderTabsStrip();
 }
 
 /* ═══════════════════════════════════
@@ -1934,8 +1934,8 @@ function renderOpenTabs() {
   const g = document.getElementById("tabs-grid");
   const open = DB.tabs.filter((t) => t.items.length > 0 || t.guest);
   if (!open.length) {
-    // g.innerHTML =
-    //   '<div class="tabs-empty">No open tabs — all bills settled</div>';
+    g.innerHTML =
+      '<div class="tabs-empty">No open tabs — all bills settled</div>';
     return;
   }
   g.innerHTML = open
@@ -2360,7 +2360,7 @@ function refreshPOS() {
   }
   renderCart();
   syncBadge();
-  //renderTabsStrip();
+  renderTabsStrip();
   updateKotBtn();
 }
 
@@ -2383,44 +2383,65 @@ function tick() {
    INIT
 ═══════════════════════════════════ */
 
-/* ═══════════════════════════════════
-   SHIFT SYSTEM
-   A shift has a start datetime and end datetime.
-   They can span midnight (cross-day shifts).
-   DB.shifts stores historical shifts.
-   CFG.activeShift = { start, end, note } or null.
-═══════════════════════════════════ */
-function renderShiftPage() {
-  const active = CFG.activeShift;
-  const infoEl = document.getElementById("shift-active-info");
-  const endBtn = document.getElementById("end-shift-btn");
-  if (active) {
-    infoEl.style.display = "block";
-    const s = new Date(active.start),
-      e = active.end ? new Date(active.end) : null;
-    const fmt = (d) =>
-      d.toLocaleString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    document.getElementById("shift-active-times").textContent =
-      fmt(s) + (e ? " → " + fmt(e) : " → ongoing");
-    if (endBtn) endBtn.style.display = "inline-flex";
-  } else {
-    infoEl.style.display = "none";
-    if (endBtn) endBtn.style.display = "none";
+/* ═══════════════════════════════════════════════════════
+   SHIFT SYSTEM — complete rewrite
+   Logic:
+   - CFG.activeShift = { start: ISO, end: ISO|null, name? }
+   - DB.shifts = array of completed shift records
+   - A shift can span midnight (cross-day).
+   - renderShiftPage() is the single source of truth — it
+     reads CFG.activeShift and populates all UI correctly.
+   - generateShiftReport() always reads the datetime inputs,
+     which are kept in sync with CFG.activeShift.
+════════════════════════════════════════════════════════ */
+
+/* Format a datetime-local input value from a Date */
+function toDatetimeLocal(d) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+/* Format a Date for display */
+function fmtShiftDt(d) {
+  return d.toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+/* Duration string between two Dates */
+function shiftDuration(start, end) {
+  const ms = end - start;
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+/* Called whenever datetime inputs change — update preview */
+function onShiftTimeChange() {
+  const sv = document.getElementById("sh-start").value;
+  const ev = document.getElementById("sh-end").value;
+  const preview = document.getElementById("shift-duration-preview");
+  const crossNote = document.getElementById("shift-cross-note");
+  if (!sv || !ev || !preview) return;
+  const s = new Date(sv),
+    e = new Date(ev);
+  if (e <= s) {
+    preview.textContent = "⚠ End must be after start";
+    preview.style.color = "var(--red)";
+    if (crossNote) crossNote.style.display = "none";
+    return;
   }
-  updateShiftSidebar();
+  preview.textContent = `Duration: ${shiftDuration(s, e)}`;
+  preview.style.color = "var(--soft)";
+  // Cross-midnight: end date is different from start date
+  const crossMidnight = s.toDateString() !== e.toDateString();
+  if (crossNote) crossNote.style.display = crossMidnight ? "flex" : "none";
 }
 
 function shiftPreset(type) {
   const now = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
-  const fmt = (d) =>
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   let s = new Date(now),
     e = new Date(now);
   if (type === "morning") {
@@ -2434,26 +2455,80 @@ function shiftPreset(type) {
   if (type === "night") {
     s.setHours(22, 0, 0, 0);
     e = new Date(s);
-    e.setDate(e.getDate() + 1);
+    e.setDate(e.getDate() + 1); // next day for cross-midnight
     e.setHours(6, 0, 0, 0);
   }
-  document.getElementById("sh-start").value = fmt(s);
-  document.getElementById("sh-end").value = fmt(e);
+  document.getElementById("sh-start").value = toDatetimeLocal(s);
+  document.getElementById("sh-end").value = toDatetimeLocal(e);
+  onShiftTimeChange();
+}
+
+function renderShiftPage() {
+  const active = CFG.activeShift;
+
+  /* ── Hero status bar ── */
+  const dot = document.getElementById("ssh-dot");
+  const statusTxt = document.getElementById("ssh-status-txt");
+  const timesEl = document.getElementById("ssh-times");
+  const actionsEl = document.getElementById("ssh-actions");
+  const startBtn = document.getElementById("start-shift-btn");
+  const endBtn = document.getElementById("end-shift-btn");
+
+  if (active) {
+    const s = new Date(active.start);
+    const e = active.end ? new Date(active.end) : null;
+    // Hero
+    if (dot) {
+      dot.className = "ssh-dot active";
+    }
+    if (statusTxt) statusTxt.textContent = "Shift Active";
+    if (timesEl)
+      timesEl.textContent =
+        fmtShiftDt(s) + (e ? " → " + fmtShiftDt(e) : " → ongoing");
+    if (actionsEl)
+      actionsEl.innerHTML = `<button class="btn btn-red btn-sm" onclick="endShift()">■ End Shift</button>
+       <button class="btn btn-outline btn-sm" onclick="generateShiftReport()">📊 Refresh Report</button>`;
+    // Inputs — populate from active shift so Generate Report works
+    const startEl = document.getElementById("sh-start");
+    const endEl = document.getElementById("sh-end");
+    if (startEl) startEl.value = toDatetimeLocal(s);
+    if (endEl)
+      endEl.value = e ? toDatetimeLocal(e) : toDatetimeLocal(new Date());
+    // Buttons
+    if (startBtn) startBtn.textContent = "↺ Update Shift";
+    if (endBtn) endBtn.style.display = "inline-flex";
+    onShiftTimeChange();
+    generateShiftReport();
+  } else {
+    if (dot) {
+      dot.className = "ssh-dot";
+    }
+    if (statusTxt) statusTxt.textContent = "No Active Shift";
+    if (timesEl)
+      timesEl.textContent =
+        "Start a shift to track sales for a specific period";
+    if (actionsEl) actionsEl.innerHTML = "";
+    if (startBtn) startBtn.textContent = "▶ Start Shift";
+    if (endBtn) endBtn.style.display = "none";
+  }
+
+  renderPastShifts();
+  updateShiftSidebar();
 }
 
 function startShift() {
-  const startVal = document.getElementById("sh-start").value;
-  const endVal = document.getElementById("sh-end").value;
-  if (!startVal) {
+  const sv = document.getElementById("sh-start").value;
+  const ev = document.getElementById("sh-end").value;
+  if (!sv) {
     Swal.fire({
-      title: "Set Start Time",
-      text: "Please enter a shift start time.",
+      title: "Start Time Required",
+      text: "Please set a shift start time or use a preset.",
       icon: "warning",
     });
     return;
   }
-  const startDt = new Date(startVal);
-  const endDt = endVal ? new Date(endVal) : null;
+  const startDt = new Date(sv);
+  const endDt = ev ? new Date(ev) : null;
   if (endDt && endDt <= startDt) {
     Swal.fire({
       title: "Invalid Times",
@@ -2462,114 +2537,262 @@ function startShift() {
     });
     return;
   }
+  // Warn if shift already active
+  if (CFG.activeShift) {
+    Swal.fire({
+      title: "Shift Already Active",
+      text: "An active shift exists. Do you want to replace it with the new times?",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Yes, Update",
+      cancelButtonText: "Cancel",
+    }).then((r) => {
+      if (r.isConfirmed) _doStartShift(startDt, endDt);
+    });
+    return;
+  }
+  _doStartShift(startDt, endDt);
+}
+
+function _doStartShift(startDt, endDt) {
   CFG.activeShift = {
     start: startDt.toISOString(),
     end: endDt ? endDt.toISOString() : null,
+    startedAt: new Date().toISOString(),
   };
   saveCFG();
   renderShiftPage();
-  toast("Shift started", "ok");
-  generateShiftReport();
+  toast("Shift started — " + fmtShiftDt(startDt), "ok");
 }
 
-function endShift() {
+async function endShift() {
   if (!CFG.activeShift) return;
+  const ok = await swalConfirm(
+    "End This Shift?",
+    "The shift will be saved to history.",
+    "End Shift",
+    "question",
+  );
+  if (!ok) return;
   const now = new Date().toISOString();
-  // Save to history
-  const shiftRecord = { ...CFG.activeShift, end: now, closedAt: now };
   if (!DB.shifts) DB.shifts = [];
-  DB.shifts.push(shiftRecord);
+  DB.shifts.push({ ...CFG.activeShift, closedAt: now });
   LS.set("shifts", DB.shifts);
   CFG.activeShift = null;
   saveCFG();
   renderShiftPage();
-  toast("Shift ended", "info");
+  toast("Shift ended and saved to history", "info");
 }
 
 function generateShiftReport() {
   const area = document.getElementById("shift-report-area");
   if (!area) return;
-  const startVal = document.getElementById("sh-start").value;
-  const endVal = document.getElementById("sh-end").value;
-  if (!startVal) {
-    area.innerHTML =
-      '<div style="color:var(--soft);padding:20px;font-style:italic">Set shift times above and click Generate Report.</div>';
+  const sv = document.getElementById("sh-start").value;
+  const ev = document.getElementById("sh-end").value;
+
+  if (!sv) {
+    area.innerHTML = `<div class="shift-report-empty"><div class="sre-icon">📊</div><div class="sre-title">Set Shift Times</div><div class="sre-sub">Configure shift start and end times, then click View Report</div></div>`;
     return;
   }
-  const shiftStart = new Date(startVal);
-  const shiftEnd = endVal
-    ? new Date(endVal)
-    : new Date(); /* if no end, use now */
-  /* Filter orders within shift window — handles cross-midnight correctly */
+
+  const shiftStart = new Date(sv);
+  const shiftEnd = ev ? new Date(ev) : new Date(); // if no end, use now
+
+  if (shiftEnd <= shiftStart) {
+    area.innerHTML = `<div class="shift-report-empty"><div class="sre-icon">⚠️</div><div class="sre-title">Invalid Time Range</div><div class="sre-sub">End time must be after start time</div></div>`;
+    return;
+  }
+
+  // Filter orders: createdAt falls within [shiftStart, shiftEnd]
+  // This correctly handles cross-midnight because Date comparison is epoch-based
   const shiftOrders = DB.orders.filter((o) => {
     const t = new Date(o.createdAt);
     return t >= shiftStart && t <= shiftEnd;
   });
+
   const totalRev = shiftOrders.reduce((s, o) => s + o.total, 0);
   const totalItems = shiftOrders.reduce(
     (s, o) => s + o.items.reduce((a, i) => a + i.qty, 0),
     0,
   );
   const avgOrder = shiftOrders.length ? totalRev / shiftOrders.length : 0;
+  const crossMidnight = shiftStart.toDateString() !== shiftEnd.toDateString();
+
   /* Payment breakdown */
   const payBreak = {};
   shiftOrders.forEach((o) => {
     payBreak[o.payMethod] = (payBreak[o.payMethod] || 0) + o.total;
   });
-  const payRows = Object.entries(payBreak)
-    .map(
-      ([m, a]) =>
-        `<div style="display:flex;justify-content:space-between;font-size:.77rem;padding:3px 0"><span>${m}</span><span style="font-weight:600">${cur()} ${a.toFixed(0)}</span></div>`,
-    )
-    .join("");
-  const fmt = (d) =>
-    d.toLocaleString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  const crossMidnight = shiftEnd.getDate() !== shiftStart.getDate();
+
+  /* Top items */
+  const itemMap = {};
+  shiftOrders.forEach((o) =>
+    o.items.forEach((i) => {
+      if (!itemMap[i.name]) itemMap[i.name] = { qty: 0, rev: 0 };
+      itemMap[i.name].qty += i.qty;
+      itemMap[i.name].rev += i.price * i.qty;
+    }),
+  );
+  const topItems = Object.entries(itemMap)
+    .sort((a, b) => b[1].rev - a[1].rev)
+    .slice(0, 5);
+
+  /* Order rows */
   const orderRows =
     shiftOrders.length === 0
-      ? '<div class="shift-no-orders">No orders in this shift window</div>'
+      ? '<div class="shift-no-orders">No orders found in this shift window</div>'
       : shiftOrders
           .map((o) => {
             const d = new Date(o.createdAt);
+            const itemNames = o.items.map((i) => i.name).join(", ");
             return `<div class="shift-order-row">
           <div class="sho-num">#${o.num}</div>
           <div class="sho-body">
             <div class="sho-guest">${o.guest}</div>
-            <div class="sho-meta">${o.tableName} · ${o.staffName || "—"} · ${o.payMethod}</div>
+            <div class="sho-meta">${o.tableName} · ${o.staffName || "Unassigned"} · ${itemNames.slice(0, 40)}${itemNames.length > 40 ? "…" : ""}</div>
           </div>
-          <div>
+          <div style="text-align:right">
             <div class="sho-total">${cur()} ${o.total.toFixed(0)}</div>
-            <div class="sho-time">${d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</div>
+            <div class="sho-time">${d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })} · ${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+            <span class="badge b-gray" style="font-size:.56rem">${o.payMethod}</span>
           </div>
         </div>`;
           })
           .join("");
-  area.innerHTML = `<div class="shift-report-card">
-    <div class="shift-report-header">
-      <div class="shift-report-title">Shift Report</div>
-      <div class="shift-report-period">${fmt(shiftStart)} → ${fmt(shiftEnd)}${crossMidnight ? ' <span style="opacity:.6">(cross-midnight)</span>' : ""}</div>
-    </div>
-    <div class="shift-stats">
-      <div class="shift-stat"><div class="shift-stat-n">${cur()} ${totalRev.toFixed(0)}</div><div class="shift-stat-l">Revenue</div></div>
-      <div class="shift-stat"><div class="shift-stat-n">${shiftOrders.length}</div><div class="shift-stat-l">Orders</div></div>
-      <div class="shift-stat"><div class="shift-stat-n">${cur()} ${avgOrder.toFixed(0)}</div><div class="shift-stat-l">Avg Order</div></div>
-      <div class="shift-stat"><div class="shift-stat-n">${Math.round(totalItems)}</div><div class="shift-stat-l">Items Sold</div></div>
-    </div>
-    <div style="padding:12px 18px;border-bottom:1px solid var(--border)">
-      <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--soft);margin-bottom:8px">Payment Breakdown</div>
-      ${payRows || '<div style="font-size:.75rem;color:var(--soft);font-style:italic">No payments recorded</div>'}
-    </div>
-    <div style="padding:10px 16px 6px;border-bottom:1px solid var(--border)">
-      <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--soft);margin-bottom:2px">Orders (${shiftOrders.length})</div>
-    </div>
-    <div class="shift-orders-list">${orderRows}</div>
-  </div>`;
+
+  /* Payment breakdown rows */
+  const payRows =
+    Object.entries(payBreak)
+      .map(
+        ([m, a]) =>
+          `<div class="shift-pay-row"><span>${m}</span><strong>${cur()} ${a.toFixed(0)}</strong></div>`,
+      )
+      .join("") ||
+    '<div style="font-size:.75rem;color:var(--soft);font-style:italic">No payments</div>';
+
+  /* Top items rows */
+  const topRows = topItems.length
+    ? topItems
+        .map(
+          ([n, d]) =>
+            `<div class="shift-pay-row"><span>${n} <span style="color:var(--soft);font-size:.65rem">(×${Math.round(d.qty)})</span></span><strong>${cur()} ${d.rev.toFixed(0)}</strong></div>`,
+        )
+        .join("")
+    : '<div style="font-size:.75rem;color:var(--soft);font-style:italic">No items</div>';
+
+  const isActive = !!CFG.activeShift;
+  const headerBadge = isActive
+    ? `<span class="ssh-dot active" style="width:8px;height:8px;display:inline-block;margin-right:6px;border-radius:50%"></span>Active Shift`
+    : `Custom Range`;
+
+  area.innerHTML = `
+    <div class="shift-report-card">
+      <div class="shift-report-header">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div class="shift-report-title">Shift Report</div>
+            <div class="shift-report-period">${fmtShiftDt(shiftStart)} → ${fmtShiftDt(shiftEnd)}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+            <span style="font-size:.65rem;opacity:.6">${headerBadge}</span>
+            ${crossMidnight ? '<span style="font-size:.62rem;opacity:.5">🌙 Cross-midnight</span>' : ""}
+            <span style="font-size:.62rem;opacity:.5">Duration: ${shiftDuration(shiftStart, shiftEnd)}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats row -->
+      <div class="shift-stats">
+        <div class="shift-stat">
+          <div class="shift-stat-n">${cur()} ${totalRev.toFixed(0)}</div>
+          <div class="shift-stat-l">Revenue</div>
+        </div>
+        <div class="shift-stat">
+          <div class="shift-stat-n">${shiftOrders.length}</div>
+          <div class="shift-stat-l">Orders</div>
+        </div>
+        <div class="shift-stat">
+          <div class="shift-stat-n">${cur()} ${avgOrder.toFixed(0)}</div>
+          <div class="shift-stat-l">Avg Order</div>
+        </div>
+        <div class="shift-stat">
+          <div class="shift-stat-n">${Math.round(totalItems)}</div>
+          <div class="shift-stat-l">Items Sold</div>
+        </div>
+      </div>
+
+      <!-- Payment + Top Items side by side -->
+      <div class="shift-breakdown-grid">
+        <div class="shift-breakdown-section">
+          <div class="shift-section-label">Payment Breakdown</div>
+          ${payRows}
+        </div>
+        <div class="shift-breakdown-section">
+          <div class="shift-section-label">Top Selling Items</div>
+          ${topRows}
+        </div>
+      </div>
+
+      <!-- Orders list -->
+      <div class="shift-orders-header">
+        <span class="shift-section-label" style="margin-bottom:0">Orders in Shift (${shiftOrders.length})</span>
+        ${shiftOrders.length > 0 ? `<span style="font-size:.68rem;color:var(--soft)">${cur()} ${totalRev.toFixed(0)} total</span>` : ""}
+      </div>
+      <div class="shift-orders-list">${orderRows}</div>
+    </div>`;
+}
+
+function renderPastShifts() {
+  const el = document.getElementById("past-shifts-list");
+  if (!el) return;
+  if (!DB.shifts || !DB.shifts.length) {
+    el.innerHTML =
+      '<div class="shift-no-orders">No past shifts recorded yet</div>';
+    return;
+  }
+  el.innerHTML = [...DB.shifts]
+    .reverse()
+    .map((sh, idx) => {
+      const s = new Date(sh.start);
+      const e = sh.closedAt
+        ? new Date(sh.closedAt)
+        : sh.end
+          ? new Date(sh.end)
+          : null;
+      const shiftOrders = DB.orders.filter((o) => {
+        const t = new Date(o.createdAt);
+        return t >= s && (!e || t <= e);
+      });
+      const rev = shiftOrders.reduce((sum, o) => sum + o.total, 0);
+      const cross = e && s.toDateString() !== e.toDateString();
+      return `<div class="past-shift-row" onclick="loadPastShift(${DB.shifts.length - 1 - idx})">
+      <div class="psr-left">
+        <div class="psr-date">${s.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</div>
+        <div class="psr-time">${s.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })} → ${e ? e.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "—"}${cross ? ' <span style="color:var(--amber3);font-size:.6rem">+1d</span>' : ""}</div>
+      </div>
+      <div class="psr-right">
+        <div class="psr-rev">${cur()} ${rev.toFixed(0)}</div>
+        <div class="psr-orders">${shiftOrders.length} orders</div>
+      </div>
+    </div>`;
+    })
+    .join("");
+}
+
+function loadPastShift(idx) {
+  const sh = DB.shifts[idx];
+  if (!sh) return;
+  const s = new Date(sh.start);
+  const e = sh.closedAt
+    ? new Date(sh.closedAt)
+    : sh.end
+      ? new Date(sh.end)
+      : new Date();
+  document.getElementById("sh-start").value = toDatetimeLocal(s);
+  document.getElementById("sh-end").value = toDatetimeLocal(e);
+  onShiftTimeChange();
+  generateShiftReport();
+  toast("Loaded past shift — " + fmtShiftDt(s), "amber");
 }
 
 function updateShiftSidebar() {
