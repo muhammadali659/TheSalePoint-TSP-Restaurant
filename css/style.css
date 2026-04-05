@@ -518,7 +518,7 @@ select.fc option { background:var(--card-bg);color:var(--ink); }
 .search-icon { position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--ghost);font-size:.9rem;pointer-events:none; }
 
 /* ═══ MENU GRID ═══ */
-.menu-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px;max-height:calc(100vh - 285px);overflow-y:auto;padding-right:2px;align-content:start;align-items:start; }
+.menu-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px;max-height:calc(100vh - 285px);overflow-y:auto;padding-right:2px; }
 .menu-card { background:var(--card-bg);border:1.5px solid var(--border);border-radius:var(--r2);overflow:hidden;cursor:pointer;transition:all var(--t) var(--ease);position:relative;box-shadow:var(--shadow-sm); }
 .menu-card:hover { border-color:var(--amber);box-shadow:var(--shadow),0 0 0 3px var(--amber-ring);transform:translateY(-3px); }
 .menu-card:active { transform:scale(.97) translateY(0); }
@@ -974,24 +974,15 @@ select option:disabled { color:var(--soft)!important; font-style:italic; }
 
 
 /* ═══ MENU COLUMN ═══ */
-.menu-col {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  /* height comes from pos-layout stretch, not forcing 100% */
-}
+.menu-col { display:flex;flex-direction:column;min-height:0;overflow:hidden; }
 .menu-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-  gap: 9px;
-  overflow-y: auto;
-  /* flex:1 was stretching cards — use max-height instead */
-  flex: 1;
-  min-height: 0;
-  align-content: start;   /* items start from top, DO NOT stretch rows */
-  align-items: start;     /* each card keeps its natural height */
-  padding-right: 2px;
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(148px,1fr));
+  gap:9px;
+  overflow-y:auto;
+  flex:1;
+  align-content:start;
+  padding-right:2px;
 }
 
 /* ═══ ORDER COLUMN — single flex column ═══ */
@@ -1020,9 +1011,9 @@ select option:disabled { color:var(--soft)!important; font-style:italic; }
   border-bottom:1px solid var(--border);
   display:block !important;
 }
-/* billing-controls moved to menu-billing-panel */
-/* disc-note-row moved to menu-billing-panel */
-
+.billing-controls { padding:10px 14px;border-bottom:1px solid var(--border); }
+.disc-note-row { display:grid;grid-template-columns:1fr 1.6fr;gap:6px;margin-top:7px; }
+.disc-note-row .fc { font-size:.77rem;padding:7px 9px; }
 .action-row { display:flex;gap:6px;padding:10px 14px 12px; }
 .action-row .btn { font-size:.75rem;padding:10px 12px; }
 
@@ -1090,83 +1081,4 @@ select option:disabled { color:var(--soft)!important; font-style:italic; }
   .order-col { height:auto; }
   .order-col .op-cart { max-height:300px;flex:none; }
   .menu-grid { max-height:45vh; }
-}
-
-/* ═══ MENU BILLING PANEL (Payment / Discount / Notes — left column bottom) ═══ */
-.menu-billing-panel {
-  flex-shrink: 0;
-  background: var(--off);
-  border: 1.5px solid var(--border);
-  border-radius: var(--r2);
-  margin-top: 10px;
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-}
-.mbp-inner {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0;
-  align-items: stretch;
-}
-.mbp-pay-section {
-  padding: 11px 14px;
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.mbp-pay-section .pay-row {
-  display: flex;
-  gap: 5px;
-  flex-direction: row;
-  margin-bottom: 0;
-  grid-template-columns: unset;
-}
-.mbp-pay-section .pay-btn {
-  padding: 7px 14px;
-  font-size: .71rem;
-  white-space: nowrap;
-}
-.mbp-fields-section {
-  padding: 11px 14px;
-  display: grid;
-  grid-template-columns: 1fr 1.4fr;
-  gap: 8px;
-  align-items: end;
-}
-.mbp-fields-section .fc {
-  font-size: .78rem;
-  padding: 7px 10px;
-}
-.mbp-fields-section .fl {
-  margin-bottom: 4px;
-}
-
-.action-row { display:flex;gap:6px;padding:10px 14px 12px; }
-
-@media(max-width:900px) {
-  .menu-billing-panel { margin-top:8px; }
-  .mbp-inner { grid-template-columns:1fr; }
-  .mbp-pay-section { border-right:none;border-bottom:1px solid var(--border); }
-  .mbp-fields-section { grid-template-columns:1fr 1fr; }
-}
-@media(max-width:600px) {
-  .mbp-fields-section { grid-template-columns:1fr; }
-  .mbp-pay-section .pay-btn { padding:7px 10px;font-size:.68rem; }
-}
-
-/* Prevent menu cards from stretching to fill grid row height */
-.menu-card {
-  align-self: start;
-  height: auto !important;
-}
-.menu-grid .menu-card {
-  display: flex;
-  flex-direction: column;
-}
-.mc-img {
-  flex-shrink: 0;
-}
-.mc-body {
-  flex-shrink: 0;
 }

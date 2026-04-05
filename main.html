@@ -134,44 +134,15 @@
         <!-- ═══ POS ═══ -->
         <section class="pg on" id="pg-pos">
           <div class="pos-layout">
-
-            <!-- LEFT COLUMN: search + categories + menu grid + (payment/discount/notes at bottom) -->
-            <div class="menu-col">
+            <div>
               <div class="search-wrap">
                 <span class="search-icon">⌕</span>
                 <input class="fc" id="menu-q" placeholder="Search dishes…" oninput="renderMenu()" />
               </div>
               <div class="cat-bar" id="cat-bar"></div>
-              <!-- Menu grid — scrollable, fills space -->
               <div class="menu-grid" id="menu-grid"></div>
-              <!-- PAYMENT / DISCOUNT / NOTES — below the menu grid (area "2") -->
-              <div class="menu-billing-panel">
-                <div class="mbp-inner">
-                  <div class="mbp-pay-section">
-                    <div class="pay-lbl">Payment Method</div>
-                    <div class="pay-row">
-                      <button class="pay-btn on" data-pay="Cash" onclick="selPay(this)">💵 Cash</button>
-                      <button class="pay-btn" data-pay="Card" onclick="selPay(this)">💳 Card</button>
-                      <button class="pay-btn" data-pay="QR" onclick="selPay(this)">📱 QR</button>
-                    </div>
-                  </div>
-                  <div class="mbp-fields-section">
-                    <div class="fg" style="margin-bottom:0">
-                      <label class="fl">Discount</label>
-                      <input class="fc" type="number" id="f-disc" placeholder="0" min="0" step="0.01"
-                        oninput="recalc()" />
-                    </div>
-                    <div class="fg" style="margin-bottom:0">
-                      <label class="fl">Notes</label>
-                      <input class="fc" type="text" id="f-note" placeholder="Special instructions…"
-                        oninput="autoSaveTab()" />
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
-
-            <!-- RIGHT COLUMN: tabs + order head + meta + cart (grows) + totals + actions -->
+            <!-- ORDER COLUMN: tabs + meta + cart (grows) + billing (bottom fixed) -->
             <div class="order-col">
               <!-- Tabs strip -->
               <div class="tabs-strip">
@@ -211,7 +182,7 @@
                 <span class="kot-pending-badge" id="kot-pending-n">0 new</span>
                 <span class="kot-status-txt">items pending KOT</span>
               </div>
-              <!-- CART — grows to fill remaining height -->
+              <!-- CART — fills available space -->
               <div class="op-cart" id="cart-area">
                 <div class="cart-empty-state">
                   <div class="ces-icon"><svg width="38" height="38" viewBox="0 0 38 38" fill="none">
@@ -225,8 +196,9 @@
                   <div class="ces-text">Tap a dish to begin</div>
                 </div>
               </div>
-              <!-- TOTALS + ACTIONS at bottom of order column -->
+              <!-- BILLING SECTION — bottom of order column -->
               <div class="op-billing">
+                <!-- Totals -->
                 <div class="op-totals" id="op-totals">
                   <div class="t-row"><span class="t-lbl">Subtotal</span><span class="t-val" id="t-sub">0.00</span></div>
                   <div class="t-row disc" id="t-disc-row" style="display:none"><span class="t-lbl">Discount</span><span
@@ -236,13 +208,27 @@
                   <div class="t-row grand"><span class="t-lbl">Total</span><span class="t-val" id="t-total">0.00</span>
                   </div>
                 </div>
+                <!-- Payment + Discount + Notes in one compact row -->
+                <div class="billing-controls">
+                  <div class="pay-lbl">Payment Method</div>
+                  <div class="pay-row">
+                    <button class="pay-btn on" data-pay="Cash" onclick="selPay(this)">💵 Cash</button>
+                    <button class="pay-btn" data-pay="Card" onclick="selPay(this)">💳 Card</button>
+                    <button class="pay-btn" data-pay="QR" onclick="selPay(this)">📱 QR</button>
+                  </div>
+                  <div class="disc-note-row">
+                    <input class="fc" type="number" id="f-disc" placeholder="Discount" min="0" step="0.01"
+                      oninput="recalc()" />
+                    <input class="fc" type="text" id="f-note" placeholder="Notes…" oninput="autoSaveTab()" />
+                  </div>
+                </div>
+                <!-- Actions -->
                 <div class="action-row">
                   <button class="btn btn-ghost btn-block" onclick="saveTab()">💾 Save Tab</button>
                   <button class="btn btn-amber btn-xl btn-block" onclick="confirmOrder()">Bill &amp; Close</button>
                 </div>
               </div>
             </div>
-
           </div>
         </section>
 
