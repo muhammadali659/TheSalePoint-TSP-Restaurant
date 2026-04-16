@@ -1336,8 +1336,15 @@ function getActiveTab() {
 }
 
 function startNewTab() {
-  /* Save whatever is currently on screen into the old tab first */
   saveActiveTab();
+  /* If the current active tab is already empty (no table, no items, no guest)
+     just reuse it — don't keep piling up blank "Tab XXXX" entries */
+  const current = getActiveTab();
+  if (current && !current.tableId && !current.items.length && !current.guest) {
+    KOT_PENDING = new Set();
+    loadTabIntoPanel(current);
+    return current;
+  }
   const tab = {
     id: uid(),
     createdAt: new Date().toISOString(),
@@ -1536,24 +1543,37 @@ function renderTabsStrip() {
   const pill = document.getElementById("tabs-pill");
   const n = document.getElementById("tabs-pill-n"),
     nb = document.getElementById("tabs-n");
-  const cnt = DB.tabs.length;
+
+  /* Only show tabs that have a real table assigned.
+     The current active blank tab (no table, no items) is the "working" panel
+     and doesn't need a chip — user picks a table to activate it. */
+  const visibleTabs = DB.tabs.filter(
+    (tab) =>
+      tab.tableId || // has a table assigned
+      tab.items.length > 0 || // has items (takeaway order in progress)
+      (tab.guest && tab.guest.trim()), // has a named guest
+  );
+
+  const cnt = visibleTabs.length;
   nb.textContent = cnt;
   nb.style.display = cnt ? "flex" : "none";
   n.textContent = cnt;
   pill.style.display = cnt > 0 ? "flex" : "none";
-  if (!DB.tabs.length) {
+
+  if (!cnt) {
     area.innerHTML =
-      '<span style="font-size:.69rem;color:rgba(255,255,255,.25);font-style:italic">No open tabs</span>';
+      '<span style="font-size:.67rem;color:rgba(255,255,255,.22);font-style:italic">No open tabs</span>';
     return;
   }
-  area.innerHTML = DB.tabs
+  area.innerHTML = visibleTabs
     .map((tab) => {
+      /* Label: table name first, then guest name, never show raw ID */
       const lbl =
         tab.tableName && tab.tableName !== "Takeaway"
           ? tab.tableName
           : tab.guest
             ? tab.guest.split(" ")[0]
-            : "Tab " + tab.id.slice(-4).toUpperCase();
+            : "Takeaway";
       const c = tab.items.reduce((s, i) => s + i.qty, 0);
       const isActive = tab.id === TAB_ID;
       return `<div class="tab-chip ${isActive ? "active" : ""}" onclick="goToTab('${tab.id}');nav('pos')" title="${tab.tableName || "Takeaway"}">${lbl}${c ? ` <span style="opacity:.55">(${c})</span>` : ""}</div>`;
@@ -2816,7 +2836,17 @@ function initApp() {
   loadDB();
   tick();
   setInterval(tick, 30000);
-  /* Restore active tab or create new one */
+
+  /* Purge stale empty tabs (no table, no items, no guest) from previous sessions
+     — keep at most one blank working tab. */
+  const meaningfulTabs = DB.tabs.filter(
+    (t) => t.tableId || t.items.length > 0 || (t.guest && t.guest.trim()),
+  );
+  if (meaningfulTabs.length < DB.tabs.length) {
+    DB.tabs = meaningfulTabs;
+    save("tabs");
+  }
+
   if (DB.tabs.length > 0) {
     TAB_ID = DB.tabs[DB.tabs.length - 1].id;
     KOT_PENDING = new Set();
