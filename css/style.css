@@ -519,7 +519,7 @@ select.fc option { background:var(--card-bg);color:var(--ink); }
 
 /* ═══ MENU GRID ═══ */
 .menu-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;max-height:calc(100vh - 285px);overflow-y:auto;padding-right:2px;align-content:start;align-items:start; }
-.menu-card { background:var(--card-bg);border:1.5px solid var(--border);border-radius:var(--r2);overflow:hidden;cursor:pointer;transition:all var(--t) var(--ease);position:relative;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;height:auto; }
+.menu-card { background:var(--card-bg);border:1.5px solid var(--border);border-radius:var(--r2);cursor:pointer;transition:all var(--t) var(--ease);position:relative;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;height:auto; }
 .menu-card:hover { border-color:var(--amber);box-shadow:var(--shadow),0 0 0 3px var(--amber-ring);transform:translateY(-3px); }
 .menu-card:active { transform:scale(.97) translateY(0); }
 .menu-card.unavail { opacity:.4;pointer-events:none; }
